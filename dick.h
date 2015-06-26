@@ -88,10 +88,10 @@ struct StateNode {
 
         virtual ~StateNode() {}
         virtual bool is_over() const { return false; }
-        virtual std::unique_ptr<StateNode> on_key(int key, bool down) { return {}; }
-        virtual std::unique_ptr<StateNode> on_button(int button, bool down) { return {}; }
-        virtual std::unique_ptr<StateNode> on_cursor(DimScreen position) { return {}; }
-        virtual std::unique_ptr<StateNode> tick(double dt) { return {}; }
+        virtual std::shared_ptr<StateNode> on_key(int key, bool down) { return {}; }
+        virtual std::shared_ptr<StateNode> on_button(int button, bool down) { return {}; }
+        virtual std::shared_ptr<StateNode> on_cursor(DimScreen position) { return {}; }
+        virtual std::shared_ptr<StateNode> tick(double dt) { return {}; }
         virtual void draw(double frame_weight) {}
 };
 
@@ -108,7 +108,7 @@ struct Platform {
         PlatformImpl *m_impl;
         Platform(const DimScreen &screen_size);
         ~Platform();
-        void real_time_loop(std::unique_ptr<StateNode> init_state);
+        void real_time_loop(std::shared_ptr<StateNode> init_state);
 };
 
 }

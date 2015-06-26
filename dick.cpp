@@ -177,10 +177,10 @@ class PlatformImpl {
         std::unique_ptr<ALLEGRO_EVENT_QUEUE, EvQueueDeleter> m_ev_queue;
 
         // Handles all the stimuli from the outside world
-        std::unique_ptr<StateNode> m_process_events(StateNode& state_node)
+        std::shared_ptr<StateNode> m_process_events(StateNode& state_node)
         {
                 ALLEGRO_EVENT event;
-                std::unique_ptr<StateNode> next_state;
+                std::shared_ptr<StateNode> next_state;
 
                 while (!al_is_event_queue_empty(m_ev_queue.get())) {
                         al_get_next_event(m_ev_queue.get(), &event);
@@ -232,7 +232,7 @@ class PlatformImpl {
         }
 
         // Updates client's state object and reacts to stimuli coming from it
-        std::unique_ptr<StateNode> m_realtime_loop_step(double &current_time, double &accumulator, StateNode& state_node)
+        std::shared_ptr<StateNode> m_realtime_loop_step(double &current_time, double &accumulator, StateNode& state_node)
         {
                 static const double max_frame_time = 0.05;
                 const double spf = 1.0 / m_fps;
@@ -248,16 +248,26 @@ class PlatformImpl {
                 accumulator += frame_time;
 
                 while (accumulator >= spf) {
-                        std::unique_ptr<StateNode> next_state = state_node.tick(spf);
+                        std::shared_ptr<StateNode> next_state = state_node.tick(spf);
+
+                        if (state_node.is_over()) {
+                                LOG_DEBUG("Client tick function triggered \"over\" state");
+                                return {};
+                        }
+
                         if (next_state) {
                                 LOG_DEBUG("Client tick function requested state change");
                                 return next_state;
                         }
+
                         accumulator -= spf;
                 }
 
                 const double frame_weight = accumulator / spf;
                 state_node.draw(frame_weight);
+                if (state_node.is_over()) {
+                        LOG_WARNING("Client draw function triggered \"over\" state (THIS IS NOT ENCOURAGED)");
+                }
 
                 return {};
         }
@@ -318,13 +328,11 @@ public:
                 }
                 LOG_TRACE("Installed mouse");
 
-                /*
-                 if(!al_install_audio()) {
-                         throw Error { "Failed initializing audio" };
-                         exit(1);
-                 }
-                 LOG_TRACE("Installed audio");
-                 */
+                if(!al_install_audio()) {
+                        throw Error { "Failed initializing audio" };
+                        exit(1);
+                }
+                LOG_TRACE("Installed audio");
 
                 m_ev_queue.reset(al_create_event_queue());
                 if (!m_ev_queue) {
@@ -339,9 +347,9 @@ public:
                 LOG_TRACE("Attached event listeners");
         }
 
-        void real_time_loop(std::unique_ptr<StateNode> current_state)
+        void real_time_loop(std::shared_ptr<StateNode> current_state)
         {
-                std::unique_ptr<StateNode> next_state;
+                std::shared_ptr<StateNode> next_state;
                 double current_time = al_get_time();
                 double accumulator = 0;
                 m_kill_flag = false;
@@ -373,6 +381,6 @@ public:
 
 Platform::Platform(const DimScreen &screen_size) : m_impl { new PlatformImpl { screen_size } } {}
 Platform::~Platform() { delete m_impl; }
-void Platform::real_time_loop(std::unique_ptr<StateNode> init_state) { m_impl->real_time_loop(std::move(init_state)); }
+void Platform::real_time_loop(std::shared_ptr<StateNode> init_state) { m_impl->real_time_loop(std::move(init_state)); }
 
 }
