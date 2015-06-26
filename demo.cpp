@@ -33,10 +33,8 @@ public:
 
         void draw(double weight) override
         {
-                al_clear_to_color(al_map_rgb_f(0.333, 0.55, 0.7));
                 m_child->draw(weight);
                 al_draw_filled_rectangle(0, 0, SCREEN_W, SCREEN_H, al_map_rgba_f(0, 0, 0, 1.0 - m_timer / m_period));
-                al_flip_display();
         }
 
         std::shared_ptr<StateNode> tick(double dt) override
@@ -60,7 +58,6 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         int m_last_button;
         dick::DimScreen m_cursor;
         double m_rotation;
-        bool m_is_child;
 
         dick::Resources m_resources;
         ALLEGRO_FONT *m_font;
@@ -71,7 +68,6 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 m_last_button { -1 },
                 m_cursor { -1.0, -1.0 },
                 m_rotation { 0.0 },
-                m_is_child { false },
                 m_resources { global_resources },
                 m_font { static_cast<ALLEGRO_FONT*>(m_resources.get_font(FONT_NAME, FONT_SIZE)) },
                 m_bitmap { static_cast<ALLEGRO_BITMAP*>(m_resources.get_image(IMAGE_NAME)) }
@@ -86,7 +82,6 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 }
 
                 if (key == ALLEGRO_KEY_ESCAPE) {
-                        m_is_child = true;
                         return std::shared_ptr<dick::StateNode> { new FadingState { shared_from_this(), 1.0 } };
                 }
 
@@ -112,9 +107,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
 
         void draw(double weight) override
         {
-                if (!m_is_child) {
-                        al_clear_to_color(al_map_rgb_f(0.333, 0.55, 0.7));
-                }
+                al_clear_to_color(al_map_rgb_f(0.333, 0.55, 0.7));
                 al_draw_textf(m_font, al_map_rgb_f(1, 1, 1), 10.0f, 10.0f, 0, "Last key : %d", m_last_key);
                 al_draw_textf(m_font, al_map_rgb_f(1, 1, 1), 10.0f, 30.0f, 0, "Last button: %d", m_last_button);
                 al_draw_textf(m_font, al_map_rgb_f(1, 1, 1), 10.0f, 50.0f, 0, "Mouse at : (%.1f, %.1f)", m_cursor.x, m_cursor.y);
@@ -126,10 +119,6 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                         1.0, 1.0,
                         m_rotation,
                         0);
-
-                if (!m_is_child) {
-                        al_flip_display();
-                }
         }
 };
 

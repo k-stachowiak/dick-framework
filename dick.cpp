@@ -265,6 +265,7 @@ class PlatformImpl {
 
                 const double frame_weight = accumulator / spf;
                 state_node.draw(frame_weight);
+                al_flip_display();
                 if (state_node.is_over()) {
                         LOG_WARNING("Client draw function triggered \"over\" state (THIS IS NOT ENCOURAGED)");
                 }

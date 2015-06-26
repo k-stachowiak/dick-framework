@@ -92,7 +92,7 @@ struct StateNode {
         virtual std::shared_ptr<StateNode> on_button(int button, bool down) { return {}; }
         virtual std::shared_ptr<StateNode> on_cursor(DimScreen position) { return {}; }
         virtual std::shared_ptr<StateNode> tick(double dt) { return {}; }
-        virtual void draw(double frame_weight) {}
+        virtual void draw(double weight) {}
 };
 
 // Core object
