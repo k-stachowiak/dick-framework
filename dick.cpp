@@ -144,6 +144,84 @@ public:
         }
 };
 
+struct StateFadeBlack : public dick::StateNode {
+        std::shared_ptr<dick::StateNode> m_child;
+        std::shared_ptr<dick::StateNode> m_next;
+        const double m_period;
+        const double m_red;
+        const double m_green;
+        const double m_blue;
+        const bool m_fade_in;
+        double m_timer;
+        bool m_over;
+
+public:
+        StateFadeBlack(std::shared_ptr<dick::StateNode> child,
+                        std::shared_ptr<dick::StateNode> next,
+                        double period,
+                        double red, double green, double blue,
+                        bool fade_in) :
+                m_child { std::move(child) },
+                m_next { std::move(next) },
+                m_period { period },
+                m_red { red }, m_green { green }, m_blue { blue },
+                m_fade_in { fade_in },
+                m_timer { m_period },
+                m_over { false }
+        {}
+
+        bool is_over() const override { return m_over; }
+
+        void draw(double weight) override
+        {
+                ALLEGRO_BITMAP *target = al_get_target_bitmap();
+                double alpha = m_fade_in ? (m_timer / m_period) : (1.0 - m_timer / m_period);
+
+                m_child->draw(weight);
+
+                al_draw_filled_rectangle(0, 0,
+                        al_get_bitmap_width(target),
+                        al_get_bitmap_height(target),
+                        al_map_rgba_f(m_red, m_green, m_blue, alpha));
+        }
+
+        std::shared_ptr<StateNode> tick(double dt) override
+        {
+                if (m_over) {
+                        return {};
+                }
+
+                m_timer -= dt;
+                if (m_timer <= 0) {
+                        if (m_next) {
+                                return m_next;
+                        } else {
+                                m_over = true;
+                        }
+                }
+
+                return {};
+        }
+};
+
+std::shared_ptr<StateNode> create_state_fade_in_color(
+                std::shared_ptr<StateNode> child,
+                std::shared_ptr<StateNode> next,
+                double period,
+                double red, double green, double blue)
+{
+        return std::shared_ptr<StateNode> { new StateFadeBlack { std::move(child), std::move(next), period, red, green, blue, true } };
+}
+
+std::shared_ptr<StateNode> create_state_fade_out_color(
+                std::shared_ptr<StateNode> child,
+                std::shared_ptr<StateNode> next,
+                double period,
+                double red, double green, double blue)
+{
+        return std::shared_ptr<StateNode> { new StateFadeBlack { std::move(child), std::move(next), period, red, green, blue, false } };
+}
+
 Resources::Resources(Resources *parent, const std::string &path_prefix) : m_impl { new ResourcesImpl { parent, path_prefix } } {}
 Resources::~Resources() { delete m_impl; }
 void *Resources::get_image(const std::string &path) { return m_impl->get_image(path, true); }

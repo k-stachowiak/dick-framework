@@ -15,43 +15,6 @@ const std::string FONT_NAME = "Roboto-Medium.ttf";
 const int FONT_SIZE = 20;
 const std::string IMAGE_NAME = "db.png";
 
-struct FadingState : public dick::StateNode {
-        std::shared_ptr<dick::StateNode> m_child;
-        const double m_period;
-        double m_timer;
-        bool m_over;
-
-public:
-        FadingState(std::shared_ptr<dick::StateNode> child, double time) :
-                m_child { std::move(child) },
-                m_period { time },
-                m_timer { time },
-                m_over { false }
-        {}
-
-        bool is_over() const override { return m_over; }
-
-        void draw(double weight) override
-        {
-                m_child->draw(weight);
-                al_draw_filled_rectangle(0, 0, SCREEN_W, SCREEN_H, al_map_rgba_f(0, 0, 0, 1.0 - m_timer / m_period));
-        }
-
-        std::shared_ptr<StateNode> tick(double dt) override
-        {
-                if (m_over) {
-                        return {};
-                }
-
-                m_timer -= dt;
-                if (m_timer <= 0) {
-                        m_over = true;
-                }
-
-                return {};
-        }
-};
-
 struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::StateNode> {
 
         int m_last_key;
@@ -81,8 +44,9 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                         m_last_key = -1;
                 }
 
+
                 if (key == ALLEGRO_KEY_ESCAPE) {
-                        return std::shared_ptr<dick::StateNode> { new FadingState { shared_from_this(), 1.0 } };
+                        return dick::create_state_fade_out_color(shared_from_this(), nullptr, 0.5, 0.0, 0.0, 0.0);
                 }
 
                 return {};
@@ -127,6 +91,7 @@ int main()
         dick::Platform platform { dick::DimScreen { SCREEN_W, SCREEN_H } };
         dick::Resources global_resources;
         global_resources.get_font(FONT_NAME, FONT_SIZE);
-        platform.real_time_loop(std::make_unique<DemoState>(&global_resources));
+        auto main_state = std::shared_ptr<dick::StateNode> { new DemoState { &global_resources } };
+        platform.real_time_loop(dick::create_state_fade_in_color(main_state, main_state, 1.0, 0.0, 0.0, 0.0));
 }
 

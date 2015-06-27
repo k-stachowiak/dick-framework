@@ -95,6 +95,24 @@ struct StateNode {
         virtual void draw(double weight) {}
 };
 
+// An example proxy state which will display the child state wigh an overlay
+// fading in or out. The period is the time of the fade. Once the period has
+// passed this object will either request switch to the next state if one
+// provided. If the next pointer is null, the proxy object will request program
+// termination.
+
+std::shared_ptr<StateNode> create_state_fade_in_color(
+                std::shared_ptr<StateNode> child,
+                std::shared_ptr<StateNode> next,
+                double period,
+                double red = 0, double green = 0, double blue = 0);
+
+std::shared_ptr<StateNode> create_state_fade_out_color(
+                std::shared_ptr<StateNode> child,
+                std::shared_ptr<StateNode> next,
+                double period,
+                double red = 0, double green = 0, double blue = 0);
+
 // Core object
 // ===========
 
