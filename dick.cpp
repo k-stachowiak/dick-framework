@@ -16,10 +16,6 @@
 
 namespace dick {
 
-// A resources object stores game assets. Any resource object may point to
-// a parent and will perform lookup upstream before reporting an error.
-// The upstream lookup is allowed to fail and return a null pointer, whereas
-// the public API calls requesting unavailable resources will throw.
 class ResourcesImpl {
 
         // Deleters for the Allegro resources
@@ -144,6 +140,11 @@ public:
         }
 };
 
+Resources::Resources(Resources *parent, const std::string &path_prefix) : m_impl { new ResourcesImpl { parent, path_prefix } } {}
+Resources::~Resources() { delete m_impl; }
+void *Resources::get_image(const std::string &path) { return m_impl->get_image(path, true); }
+void *Resources::get_font(const std::string &path, int size) { return m_impl->get_font(path, size, true); }
+
 struct StateFadeBlack : public dick::StateNode {
         std::shared_ptr<dick::StateNode> m_child;
         std::shared_ptr<dick::StateNode> m_next;
@@ -153,6 +154,7 @@ struct StateFadeBlack : public dick::StateNode {
         const double m_blue;
         const bool m_fade_in;
         double m_timer;
+        bool m_done;
         bool m_over;
 
 public:
@@ -161,16 +163,33 @@ public:
                         double period,
                         double red, double green, double blue,
                         bool fade_in) :
-                m_child { std::move(child) },
-                m_next { std::move(next) },
+                m_child { child },
+                m_next { next },
                 m_period { period },
                 m_red { red }, m_green { green }, m_blue { blue },
                 m_fade_in { fade_in },
                 m_timer { m_period },
+                m_done { false },
                 m_over { false }
         {}
 
         bool is_over() const override { return m_over; }
+
+        void tick(double dt) override
+        {
+                if (m_over) {
+                        return;
+                }
+
+                m_timer -= dt;
+                if (m_timer <= 0) {
+                        if (m_next) {
+                                m_done = true;
+                        } else {
+                                m_over = true;
+                        }
+                }
+        }
 
         void draw(double weight) override
         {
@@ -185,22 +204,12 @@ public:
                         al_map_rgba_f(m_red, m_green, m_blue, alpha));
         }
 
-        std::shared_ptr<StateNode> tick(double dt) override
-        {
-                if (m_over) {
-                        return {};
-                }
+        bool transition_required() const override {
+            return m_done;
+        }
 
-                m_timer -= dt;
-                if (m_timer <= 0) {
-                        if (m_next) {
-                                return m_next;
-                        } else {
-                                m_over = true;
-                        }
-                }
-
-                return {};
+        std::shared_ptr<StateNode> next_state() override {
+                return std::move(m_next);
         }
 };
 
@@ -210,7 +219,7 @@ std::shared_ptr<StateNode> create_state_fade_in_color(
                 double period,
                 double red, double green, double blue)
 {
-        return std::shared_ptr<StateNode> { new StateFadeBlack { std::move(child), std::move(next), period, red, green, blue, true } };
+        return std::shared_ptr<StateNode> { new StateFadeBlack { child, next, period, red, green, blue, true } };
 }
 
 std::shared_ptr<StateNode> create_state_fade_out_color(
@@ -219,13 +228,95 @@ std::shared_ptr<StateNode> create_state_fade_out_color(
                 double period,
                 double red, double green, double blue)
 {
-        return std::shared_ptr<StateNode> { new StateFadeBlack { std::move(child), std::move(next), period, red, green, blue, false } };
+        return std::shared_ptr<StateNode> { new StateFadeBlack { child, next, period, red, green, blue, false } };
 }
 
-Resources::Resources(Resources *parent, const std::string &path_prefix) : m_impl { new ResourcesImpl { parent, path_prefix } } {}
-Resources::~Resources() { delete m_impl; }
-void *Resources::get_image(const std::string &path) { return m_impl->get_image(path, true); }
-void *Resources::get_font(const std::string &path, int size) { return m_impl->get_font(path, size, true); }
+class StateMachineImpl {
+        std::shared_ptr<StateNode> m_current_state;
+
+        bool m_potential_transition()
+        {
+                if (m_current_state->transition_required()) {
+                        LOG_DEBUG("Client requested state change");
+                        m_current_state = std::move(m_current_state->next_state());
+                        return true;
+                } else {
+                        return false;
+                }
+        }
+
+        void m_unwelcome_transition()
+        {
+                if (m_potential_transition()) {
+                        LOG_WARNING("Unwelcome state transition request e.g. after a draw handler");
+                }
+        }
+
+public:
+        StateMachineImpl(std::shared_ptr<StateNode> init_state) :
+                m_current_state { init_state }
+        {}
+
+        bool is_over() const
+        {
+                if (m_current_state) {
+                        return m_current_state->is_over();
+                } else {
+                        return true;
+                }
+        }
+
+        void on_key(int key, bool down)
+        {
+                if (m_current_state) {
+                        m_current_state->on_key(key, down);
+                        m_potential_transition();
+                }
+        }
+        void on_button(int button, bool down)
+        {
+                if (m_current_state) {
+                        m_current_state->on_button(button, down);
+                        m_potential_transition();
+                }
+        }
+
+        void on_cursor(DimScreen position)
+        {
+                if (m_current_state) {
+                        m_current_state->on_cursor(position);
+                        m_potential_transition();
+                }
+        }
+
+        void tick(double dt)
+        {
+                if (m_current_state) {
+                        m_current_state->tick(dt);
+                        m_potential_transition();
+                }
+        }
+
+        void draw(double weight)
+        {
+                if (m_current_state) {
+                        m_current_state->draw(weight);
+                        m_unwelcome_transition();
+                }
+        }
+};
+
+StateMachine::StateMachine(std::shared_ptr<StateNode> init_state) :
+        m_impl { new StateMachineImpl { init_state } }
+{}
+
+StateMachine::~StateMachine() { delete m_impl; }
+bool StateMachine::is_over() const { return m_impl->is_over(); }
+void StateMachine::on_key(int key, bool down) { m_impl->on_key(key, down); }
+void StateMachine::on_button(int button, bool down) { m_impl->on_button(button, down); }
+void StateMachine::on_cursor(DimScreen position) { m_impl->on_cursor(position); }
+void StateMachine::tick(double dt) { m_impl->tick(dt); }
+void StateMachine::draw(double weight) { m_impl->draw(weight); }
 
 class PlatformImpl {
 
@@ -255,37 +346,35 @@ class PlatformImpl {
         std::unique_ptr<ALLEGRO_EVENT_QUEUE, EvQueueDeleter> m_ev_queue;
 
         // Handles all the stimuli from the outside world
-        std::shared_ptr<StateNode> m_process_events(StateNode& state_node)
+        void m_process_events(PlatformClient &client)
         {
                 ALLEGRO_EVENT event;
-                std::shared_ptr<StateNode> next_state;
-
                 while (!al_is_event_queue_empty(m_ev_queue.get())) {
                         al_get_next_event(m_ev_queue.get(), &event);
                         switch (event.type) {
                         case ALLEGRO_EVENT_DISPLAY_CLOSE:
                                 LOG_DEBUG("Close event received");
                                 m_kill_flag = true;
-                                return {};
+                                return;
 
                         case ALLEGRO_EVENT_KEY_DOWN:
-                                next_state = state_node.on_key(event.keyboard.keycode, true);
+                                client.on_key(event.keyboard.keycode, true);
                                 break;
 
                         case ALLEGRO_EVENT_KEY_UP:
-                                next_state = state_node.on_key(event.keyboard.keycode, false);
+                                client.on_key(event.keyboard.keycode, false);
                                 break;
 
                         case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
-                                next_state = state_node.on_button(event.mouse.button, true);
+                                client.on_button(event.mouse.button, true);
                                 break;
 
                         case ALLEGRO_EVENT_MOUSE_BUTTON_UP:
-                                next_state = state_node.on_button(event.mouse.button, false);
+                                client.on_button(event.mouse.button, false);
                                 break;
 
                         case ALLEGRO_EVENT_MOUSE_AXES:
-                                next_state = state_node.on_cursor(DimScreen {
+                                client.on_cursor(DimScreen {
                                         static_cast<double>(event.mouse.x),
                                         static_cast<double>(event.mouse.y)
                                 });
@@ -295,22 +384,14 @@ class PlatformImpl {
                                 break;
                         }
 
-                        if (state_node.is_over()) {
-                                LOG_DEBUG("Client event handler triggered \"over\" state");
-                                return {};
-                        }
-
-                        if (next_state) {
-                                LOG_DEBUG("Client event handler requested state change");
-                                return next_state;
+                        if (client.is_over()) {
+                            break;
                         }
                 }
-
-                return {};
         }
 
         // Updates client's state object and reacts to stimuli coming from it
-        std::shared_ptr<StateNode> m_realtime_loop_step(double &current_time, double &accumulator, StateNode& state_node)
+        void m_realtime_loop_step(double &current_time, double &accumulator, PlatformClient& client)
         {
                 static const double max_frame_time = 0.05;
                 const double spf = 1.0 / m_fps;
@@ -326,29 +407,16 @@ class PlatformImpl {
                 accumulator += frame_time;
 
                 while (accumulator >= spf) {
-                        std::shared_ptr<StateNode> next_state = state_node.tick(spf);
-
-                        if (state_node.is_over()) {
-                                LOG_DEBUG("Client tick function triggered \"over\" state");
-                                return {};
+                        client.tick(spf);
+                        if (client.is_over()) {
+                                return;
                         }
-
-                        if (next_state) {
-                                LOG_DEBUG("Client tick function requested state change");
-                                return next_state;
-                        }
-
                         accumulator -= spf;
                 }
 
                 const double frame_weight = accumulator / spf;
-                state_node.draw(frame_weight);
+                client.draw(frame_weight);
                 al_flip_display();
-                if (state_node.is_over()) {
-                        LOG_WARNING("Client draw function triggered \"over\" state (THIS IS NOT ENCOURAGED)");
-                }
-
-                return {};
         }
 
 public:
@@ -426,33 +494,17 @@ public:
                 LOG_TRACE("Attached event listeners");
         }
 
-        void real_time_loop(std::shared_ptr<StateNode> current_state)
+        void real_time_loop(PlatformClient &client)
         {
-                std::shared_ptr<StateNode> next_state;
                 double current_time = al_get_time();
                 double accumulator = 0;
                 m_kill_flag = false;
 
                 while (true) {
-
-                        next_state = m_process_events(*current_state.get());
-                        if (current_state->is_over() || m_kill_flag) {
-                                break;
-
-                        } else if (next_state) {
-                                current_state = std::move(next_state);
-
-                        }
-
-                        next_state = m_realtime_loop_step(current_time, accumulator, *current_state.get());
-                        if (current_state->is_over()) {
-                                break;
-
-                        } else if (next_state) {
-                                current_state = std::move(next_state);
-
-                        }
-
+                        m_process_events(client);
+                        if (client.is_over() || m_kill_flag) break;
+                        m_realtime_loop_step(current_time, accumulator, client);
+                        if (client.is_over()) break;
                         al_rest(0.001);
                 }
         }
@@ -460,6 +512,6 @@ public:
 
 Platform::Platform(const DimScreen &screen_size) : m_impl { new PlatformImpl { screen_size } } {}
 Platform::~Platform() { delete m_impl; }
-void Platform::real_time_loop(std::shared_ptr<StateNode> init_state) { m_impl->real_time_loop(std::move(init_state)); }
+void Platform::real_time_loop(PlatformClient &client) { m_impl->real_time_loop(client); }
 
 }

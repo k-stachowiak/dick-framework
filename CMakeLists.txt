@@ -11,7 +11,7 @@ link_directories(
     )
 
 set(CMAKE_CXX_COMPILER "clang++")
-set(CMAKE_CXX_FLAGS "-std=c++14 -Wall -Werror -g -O0")
+set(CMAKE_CXX_FLAGS "-std=c++14 -Wall -Werror -g -O0 -DDICK_LOG_ENABLE")
 
 add_library(dick
         dick.cpp

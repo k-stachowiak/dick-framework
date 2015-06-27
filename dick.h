@@ -76,23 +76,37 @@ struct Resources {
 // State interface definition
 // ==========================
 
-struct StateNode {
+// Platform client is an object that may be plugged into the platform and
+// respond to its stimuli while performing internal operation as time
+// passes. There are two implementations of the platform client below.
+struct PlatformClient {
+        virtual ~PlatformClient() {}
+        virtual bool is_over() const = 0;
+        virtual void on_key(int key, bool down) = 0;
+        virtual void on_button(int button, bool down) = 0;
+        virtual void on_cursor(DimScreen position) = 0;
+        virtual void tick(double dt) = 0;
+        virtual void draw(double weight) = 0;
+};
 
-        // The is_over method should only be used to signal that the entire program
-        // should shut down. For transition between states an appropriate value
-        // should be returned from the event handlers.
-        //
-        // For any method that returns a pointer to a state node, if it returns
-        // null, then the current state remains the same, otherwise the loop code
-        // will replace the current state with whatever has been returned.
+// State node is an object that can be plugged in directly to the platform
+// object as it implements the PlatformClient interface, but it can also be
+// managed by the state machine which is realized by the additional transition
+// API.
+struct StateNode : public PlatformClient {
 
         virtual ~StateNode() {}
-        virtual bool is_over() const { return false; }
-        virtual std::shared_ptr<StateNode> on_key(int key, bool down) { return {}; }
-        virtual std::shared_ptr<StateNode> on_button(int button, bool down) { return {}; }
-        virtual std::shared_ptr<StateNode> on_cursor(DimScreen position) { return {}; }
-        virtual std::shared_ptr<StateNode> tick(double dt) { return {}; }
-        virtual void draw(double weight) {}
+
+        // Make all client methods optional
+        virtual bool is_over() const override { return false; }
+        virtual void on_key(int key, bool down) override {}
+        virtual void on_button(int button, bool down) override {}
+        virtual void on_cursor(DimScreen position) override {}
+        virtual void tick(double dt) override {}
+        virtual void draw(double weight) override {}
+
+        virtual bool transition_required() const { return false; }
+        virtual std::shared_ptr<StateNode> next_state() { return {}; }
 };
 
 // An example proxy state which will display the child state wigh an overlay
@@ -113,6 +127,27 @@ std::shared_ptr<StateNode> create_state_fade_out_color(
                 double period,
                 double red = 0, double green = 0, double blue = 0);
 
+// State machine is another variant of a PlatformClient object that acts as a
+// proxy for the system of underlying states. It is a default client for the
+// platform as the StateNode will rarely be useful directly, however it can
+// also be used elsewhere as a mechanism for implementing state subspaces
+// within a single, more general state.
+
+class StateMachineImpl;
+
+struct StateMachine : public PlatformClient {
+    StateMachineImpl *m_impl;
+    StateMachine(std::shared_ptr<StateNode> init_state);
+    ~StateMachine();
+
+    bool is_over() const override;
+    void on_key(int key, bool down) override;
+    void on_button(int button, bool down) override;
+    void on_cursor(DimScreen position) override;
+    void tick(double dt) override;
+    void draw(double weight) override;
+};
+
 // Core object
 // ===========
 
@@ -126,7 +161,7 @@ struct Platform {
         PlatformImpl *m_impl;
         Platform(const DimScreen &screen_size);
         ~Platform();
-        void real_time_loop(std::shared_ptr<StateNode> init_state);
+        void real_time_loop(PlatformClient &client);
 };
 
 }

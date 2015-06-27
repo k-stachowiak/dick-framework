@@ -26,6 +26,8 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         ALLEGRO_FONT *m_font;
         ALLEGRO_BITMAP *m_bitmap;
 
+        bool m_done;
+
         DemoState(dick::Resources *global_resources) :
                 m_last_key { -1 },
                 m_last_button { -1 },
@@ -33,10 +35,11 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 m_rotation { 0.0 },
                 m_resources { global_resources },
                 m_font { static_cast<ALLEGRO_FONT*>(m_resources.get_font(FONT_NAME, FONT_SIZE)) },
-                m_bitmap { static_cast<ALLEGRO_BITMAP*>(m_resources.get_image(IMAGE_NAME)) }
+                m_bitmap { static_cast<ALLEGRO_BITMAP*>(m_resources.get_image(IMAGE_NAME)) },
+                m_done { false }
         {}
 
-        std::shared_ptr<StateNode> on_key(int key, bool down) override
+        void on_key(int key, bool down) override
         {
                 if (down) {
                         m_last_key = key;
@@ -44,29 +47,24 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                         m_last_key = -1;
                 }
 
-
                 if (key == ALLEGRO_KEY_ESCAPE) {
-                        return dick::create_state_fade_out_color(shared_from_this(), nullptr, 0.5, 0.0, 0.0, 0.0);
+                        m_done = true;
                 }
-
-                return {};
         }
 
-        std::shared_ptr<StateNode> on_button(int button, bool down) override
+        void on_button(int button, bool down) override
         {
                 if (down) {
                         m_last_button = button;
                 } else {
                         m_last_button = -1;
                 }
-                return {};
         }
 
-        std::shared_ptr<StateNode> on_cursor(dick::DimScreen position) override
+        void on_cursor(dick::DimScreen position) override
         {
                 m_cursor = position;
                 m_rotation = atan2(position.y - SCREEN_H / 2, position.x - SCREEN_W / 2);
-                return {};
         }
 
         void draw(double weight) override
@@ -84,14 +82,35 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                         m_rotation,
                         0);
         }
+
+        bool transition_required() const override
+        {
+                return m_done;
+        }
+
+        std::shared_ptr<StateNode> next_state() override
+        {
+                return dick::create_state_fade_out_color(
+                        shared_from_this(),
+                        nullptr,
+                        0.5,
+                        0.0, 0.0, 0.0);
+        }
 };
 
 int main()
 {
         dick::Platform platform { dick::DimScreen { SCREEN_W, SCREEN_H } };
+
         dick::Resources global_resources;
         global_resources.get_font(FONT_NAME, FONT_SIZE);
+
         auto main_state = std::shared_ptr<dick::StateNode> { new DemoState { &global_resources } };
-        platform.real_time_loop(dick::create_state_fade_in_color(main_state, main_state, 1.0, 0.0, 0.0, 0.0));
+
+        dick::StateMachine state_machine {
+                dick::create_state_fade_in_color(main_state, main_state, 1.0, 0.0, 0.0, 0.0)
+        };
+
+        platform.real_time_loop(state_machine);
 }
 
