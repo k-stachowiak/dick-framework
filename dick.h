@@ -140,16 +140,16 @@ std::shared_ptr<StateNode> create_state_fade_out_color(
 class StateMachineImpl;
 
 struct StateMachine : public PlatformClient {
-    StateMachineImpl *m_impl;
-    StateMachine(std::shared_ptr<StateNode> init_state);
-    ~StateMachine();
+        StateMachineImpl *m_impl;
+        StateMachine(std::shared_ptr<StateNode> init_state);
+        ~StateMachine();
 
-    bool is_over() const override;
-    void on_key(int key, bool down) override;
-    void on_button(int button, bool down) override;
-    void on_cursor(DimScreen position) override;
-    void tick(double dt) override;
-    void draw(double weight) override;
+        bool is_over() const override;
+        void on_key(int key, bool down) override;
+        void on_button(int button, bool down) override;
+        void on_cursor(DimScreen position) override;
+        void tick(double dt) override;
+        void draw(double weight) override;
 };
 
 // Core object
