@@ -28,7 +28,6 @@ struct DimScreen {
 #ifdef DICK_LOG_ENABLE
 #       include <cstdio>
 #       define LOG_MESSAGE(LOG_LEVEL, LOG_FORMAT, ...) printf("[" LOG_LEVEL "][%s] %s:%d : " LOG_FORMAT "\n", __func__, __FILE__, __LINE__, ##__VA_ARGS__)
-
 #       define LOG_TRACE(LOG_FORMAT, ...) LOG_MESSAGE("TRACE", LOG_FORMAT, ##__VA_ARGS__)
 #       define LOG_DEBUG(LOG_FORMAT, ...) LOG_MESSAGE("DEBUG", LOG_FORMAT, ##__VA_ARGS__)
 #       define LOG_WARNING(LOG_FORMAT, ...) LOG_MESSAGE("WARNING", LOG_FORMAT, ##__VA_ARGS__)
@@ -98,15 +97,20 @@ struct StateNode : public PlatformClient {
         virtual ~StateNode() {}
 
         // Make all client methods optional
-        virtual bool is_over() const override { return false; }
+        bool is_over() const override { return t_is_over; }
         virtual void on_key(int key, bool down) override {}
         virtual void on_button(int button, bool down) override {}
         virtual void on_cursor(DimScreen position) override {}
         virtual void tick(double dt) override {}
         virtual void draw(double weight) override {}
 
-        virtual bool transition_required() const { return false; }
+        // Transition mechanics
+        bool transition_required() const { return t_transition_required; }
         virtual std::shared_ptr<StateNode> next_state() { return {}; }
+
+protected:
+        bool t_is_over = false;
+        bool t_transition_required = false;
 };
 
 // An example proxy state which will display the child state wigh an overlay

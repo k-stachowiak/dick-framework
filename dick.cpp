@@ -154,8 +154,6 @@ struct StateFadeBlack : public dick::StateNode {
         const double m_blue;
         const bool m_fade_in;
         double m_timer;
-        bool m_done;
-        bool m_over;
 
 public:
         StateFadeBlack(std::shared_ptr<dick::StateNode> child,
@@ -168,25 +166,21 @@ public:
                 m_period { period },
                 m_red { red }, m_green { green }, m_blue { blue },
                 m_fade_in { fade_in },
-                m_timer { m_period },
-                m_done { false },
-                m_over { false }
+                m_timer { m_period }
         {}
-
-        bool is_over() const override { return m_over; }
 
         void tick(double dt) override
         {
-                if (m_over) {
+                if (t_is_over) {
                         return;
                 }
 
                 m_timer -= dt;
                 if (m_timer <= 0) {
                         if (m_next) {
-                                m_done = true;
+                                t_transition_required = true;
                         } else {
-                                m_over = true;
+                                t_is_over = true;
                         }
                 }
         }
@@ -202,10 +196,6 @@ public:
                         al_get_bitmap_width(target),
                         al_get_bitmap_height(target),
                         al_map_rgba_f(m_red, m_green, m_blue, alpha));
-        }
-
-        bool transition_required() const override {
-            return m_done;
         }
 
         std::shared_ptr<StateNode> next_state() override {

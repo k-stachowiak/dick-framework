@@ -26,8 +26,6 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         ALLEGRO_FONT *m_font;
         ALLEGRO_BITMAP *m_bitmap;
 
-        bool m_done;
-
         DemoState(dick::Resources *global_resources) :
                 m_last_key { -1 },
                 m_last_button { -1 },
@@ -35,8 +33,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 m_rotation { 0.0 },
                 m_resources { global_resources },
                 m_font { static_cast<ALLEGRO_FONT*>(m_resources.get_font(FONT_NAME, FONT_SIZE)) },
-                m_bitmap { static_cast<ALLEGRO_BITMAP*>(m_resources.get_image(IMAGE_NAME)) },
-                m_done { false }
+                m_bitmap { static_cast<ALLEGRO_BITMAP*>(m_resources.get_image(IMAGE_NAME)) }
         {}
 
         void on_key(int key, bool down) override
@@ -48,7 +45,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 }
 
                 if (key == ALLEGRO_KEY_ESCAPE) {
-                        m_done = true;
+                        t_transition_required = true;
                 }
         }
 
@@ -81,11 +78,6 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                         1.0, 1.0,
                         m_rotation,
                         0);
-        }
-
-        bool transition_required() const override
-        {
-                return m_done;
         }
 
         std::shared_ptr<StateNode> next_state() override
