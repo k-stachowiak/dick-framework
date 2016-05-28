@@ -99,26 +99,23 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_gui.set_current_font(m_font);
 
         m_gui.transform_reset();
+        m_gui.reset_default_widget_alignment();
 
         m_gui.transform_push_shift({ 15, 10 });
-        m_gui.label({ 1, 1, 1 }, key_string);
+        m_gui.label(key_string);
 
         m_gui.transform_push_shift({ 0, 30 });
-        m_gui.label({ 1, 1, 1 }, button_string);
+        m_gui.label(button_string);
 
         m_gui.transform_push_again();
-        m_gui.label({ 1, 1, 1 }, cursor_string);
+        m_gui.label(cursor_string);
 
         m_gui.transform_reset();
+        m_gui.set_current_widget_alignment(dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT);
+        m_gui.transform_push_shift({ -5, +5 });
+
         m_gui.transform_push_screen_align(dick::GUI::Alignment::RIGHT | dick::GUI::Alignment::TOP);
-        m_gui.transform_push_shift({ -50, 10 });
-        m_gui.button_text(
-                { 0.3, 0.3, 0.3 },
-                { 0.6, 0.6, 0.6 },
-                { 1, 1, 1 },
-                { 5, 5 },
-                [](){ std::cout << "dupa" << std::endl; },
-                "Exit");
+        m_gui.button_text( { 7, 7 }, [this](){ t_transition_required = true; }, "Exit");
 
         al_draw_scaled_rotated_bitmap(
                 m_bitmap,

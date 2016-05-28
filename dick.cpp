@@ -19,6 +19,13 @@
 
 namespace dick {
 
+// Common utility
+
+inline ALLEGRO_COLOR dick_to_platform_color(const Color& x)
+{
+    return al_map_rgb_f(x.r, x.g, x.b);
+}
+
 class ResourcesImpl {
 
     // Deleters for the Allegro resources
@@ -149,6 +156,20 @@ Resources::~Resources() { delete m_impl; }
 void *Resources::get_image(const std::string &path) { return m_impl->get_image(path, true); }
 void *Resources::get_font(const std::string &path, int size) { return m_impl->get_font(path, size, true); }
 
+GUI::ColorScheme GUI::m_default_color_scheme {
+    Color { 0.76, 0.74, 0.72 },
+    Color { 0.86, 0.84, 0.82 },
+    Color { 0.76, 0.74, 0.72 },
+    Color { 0.66, 0.64, 0.62 },
+    Color { 0.76, 0.74, 0.72 },
+    Color { 0.66, 0.64, 0.62 },
+    Color { 0.0, 0.0, 0.0 },
+    Color { 0.1, 0.1, 0.0 },
+    Color { 0.5, 0.5, 0.5 }
+};
+
+int GUI::m_default_widget_alignment = GUI::Alignment::TOP | GUI::Alignment::LEFT;
+
 DimScreen GUI::m_compute_origin() const
 {
     return std::accumulate(
@@ -161,7 +182,15 @@ DimScreen GUI::m_compute_origin() const
             });
 }
 
-bool GUI::m_clicked(Button button) const
+DimScreen GUI::m_text_size(const std::string &text) const
+{
+    return {
+        static_cast<double>(al_get_text_width(static_cast<ALLEGRO_FONT*>(m_current_font), text.c_str())),
+        static_cast<double>(al_get_font_line_height(static_cast<ALLEGRO_FONT*>(m_current_font)))
+    };
+}
+
+bool GUI::clicked(Button button) const
 {
     if (!m_input_buffer) {
         return false;
@@ -170,7 +199,7 @@ bool GUI::m_clicked(Button button) const
         m_buttons[static_cast<int>(button)];
 }
 
-bool GUI::m_cursor_in(DimScreen offset, DimScreen size) const
+bool GUI::cursor_in(DimScreen offset, DimScreen size) const
 {
     if (!m_input_buffer) {
         return false;
@@ -257,13 +286,15 @@ void GUI::transform_pop()
 }
 
 void GUI::label(
-        Color text_color,
-        const std::string& text)
+    const std::string& text)
 {
+    transform_push_box_align(m_current_widget_alignment, m_text_size(text));
     DimScreen origin = m_compute_origin();
+    transform_pop();
+
     al_draw_textf(
             static_cast<ALLEGRO_FONT*>(m_current_font),
-            al_map_rgb_f(text_color.r, text_color.g, text_color.b),
+            dick_to_platform_color(m_current_color_scheme.text_regular),
             origin.x,
             origin.y,
             0,
@@ -272,38 +303,94 @@ void GUI::label(
 }
 
 void GUI::button_text(
-        Color border_color,
-        Color bg_color,
-        Color text_color,
         DimScreen padding,
         Callback callback,
         const std::string& text)
 {
-    DimScreen origin = m_compute_origin();
-
     double text_width = al_get_text_width(static_cast<ALLEGRO_FONT*>(m_current_font), text.c_str());
     double text_height = al_get_font_line_height(static_cast<ALLEGRO_FONT*>(m_current_font));
 
-    double x0 = origin.x, y0 = origin.y;
-    double x1 = x0 + 2 * padding.x + text_width;
-    double y1 = y0 + 2 * padding.y + text_height;
+    double button_width = 2 * padding.x + text_width;
+    double button_height = 2 * padding.y + text_height;
 
-    al_draw_filled_rectangle(x0, y0, x1, y1, al_map_rgb_f(bg_color.r, bg_color.g, bg_color.b));
-    al_draw_rectangle(x0, y0, x1, y1, al_map_rgb_f(border_color.r, border_color.g, border_color.b), 3);
+    transform_push_box_align(m_current_widget_alignment, { button_width, button_height });
+    DimScreen origin = m_compute_origin();
+    transform_pop();
+
+    double x0 = origin.x, y0 = origin.y;
+    double x1 = x0 + button_width;
+    double y1 = y0 + button_height;
+
+    bool cursor_inside =
+        cursor_in({ x0, y0 }, { button_width, button_height });
+
+    ALLEGRO_COLOR bg_color, border_color, text_color;
+    if (cursor_inside) {
+        bg_color = dick_to_platform_color(m_current_color_scheme.bg_active);
+        border_color = dick_to_platform_color(m_current_color_scheme.border_active);
+        text_color = dick_to_platform_color(m_current_color_scheme.text_active);
+    } else {
+        bg_color = dick_to_platform_color(m_current_color_scheme.bg_regular);
+        border_color = dick_to_platform_color(m_current_color_scheme.border_regular);
+        text_color = dick_to_platform_color(m_current_color_scheme.text_regular);
+    }
+
+    al_draw_filled_rectangle(x0, y0, x1, y1, bg_color);
+    al_draw_rectangle(x0, y0, x1, y1, border_color, 2);
     al_draw_textf(
             static_cast<ALLEGRO_FONT*>(m_current_font),
-            al_map_rgb_f(text_color.r, text_color.g, text_color.b),
-            x0 + (x1 - x0) * 0.5,
-            y0 + (y1 - y0 - text_height) * 0.5,
+            text_color,
+            x0 + button_width * 0.5,
+            y0 + (button_height - text_height) * 0.5,
             ALLEGRO_ALIGN_CENTRE,
             "%s",
             text.c_str());
 
-    if (callback &&
-            m_clicked(Button::BUTTON_1) &&
-            m_cursor_in(
-                 { x0, y0 },
-                 { x1 - x0, y1 - y0 })) {
+    if (callback && clicked(Button::BUTTON_1) && cursor_inside) {
+        callback();
+    }
+}
+
+void GUI::button_text_sized(
+        DimScreen size,
+        Callback callback,
+        const std::string& text)
+{
+    transform_push_box_align(m_current_widget_alignment, size);
+    DimScreen origin = m_compute_origin();
+    transform_pop();
+
+    double text_height = al_get_font_line_height(static_cast<ALLEGRO_FONT*>(m_current_font));
+
+    double x0 = origin.x, y0 = origin.y;
+    double x1 = x0 + size.x;
+    double y1 = y0 + size.y;
+
+    bool cursor_inside = cursor_in({ x0, y0 }, { x1 - x0, y1 - y0 });
+
+    ALLEGRO_COLOR bg_color, border_color, text_color;
+    if (cursor_inside) {
+        bg_color = dick_to_platform_color(m_current_color_scheme.bg_active);
+        border_color = dick_to_platform_color(m_current_color_scheme.border_active);
+        text_color = dick_to_platform_color(m_current_color_scheme.text_active);
+    } else {
+        bg_color = dick_to_platform_color(m_current_color_scheme.bg_regular);
+        border_color = dick_to_platform_color(m_current_color_scheme.border_regular);
+        text_color = dick_to_platform_color(m_current_color_scheme.text_regular);
+    }
+
+    al_draw_filled_rectangle(x0, y0, x1, y1, bg_color);
+    al_draw_rectangle(x0, y0, x1, y1, border_color, 2);
+    al_draw_textf(
+            static_cast<ALLEGRO_FONT*>(m_current_font),
+            text_color,
+            x0 + size.x * 0.5,
+            y0 + (size.y - text_height) * 0.5,
+            ALLEGRO_ALIGN_CENTRE,
+            "%s",
+            text.c_str());
+
+    if (callback && clicked(Button::BUTTON_1) && cursor_inside) {
         callback();
     }
 }

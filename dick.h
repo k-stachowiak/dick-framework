@@ -169,19 +169,20 @@ public:
 // ==================
 
 class GUI {
-
-    const InputBuffer *m_input_buffer;
-    double m_screen_width, m_screen_height;
-    void *m_current_font;
-    std::vector<DimScreen> m_transform_stack;
-    std::vector<bool> m_buttons_prev, m_buttons;
-
-    DimScreen m_compute_origin() const;
-    bool m_clicked(Button button) const;
-    bool m_cursor_in(DimScreen offset, DimScreen size) const;
-
 public:
     typedef std::function<void ()> Callback;
+
+    struct ColorScheme {
+        Color bg_regular;
+        Color bg_active;
+        Color bg_inactive;
+        Color border_regular;
+        Color border_active;
+        Color border_inactive;
+        Color text_regular;
+        Color text_active;
+        Color text_inactive;
+    };
 
     struct Alignment {
         enum Enum {
@@ -194,11 +195,32 @@ public:
         };
     };
 
+
+private:
+    const InputBuffer *m_input_buffer;
+    double m_screen_width, m_screen_height;
+    void *m_current_font;
+    static ColorScheme m_default_color_scheme;
+    ColorScheme m_current_color_scheme;
+    static int m_default_widget_alignment;
+    int m_current_widget_alignment;
+    std::vector<DimScreen> m_transform_stack;
+    std::vector<bool> m_buttons_prev, m_buttons;
+
+    DimScreen m_compute_origin() const;
+    DimScreen m_text_size(const std::string &text) const;
+
+public:
+    bool clicked(Button button) const;
+    bool cursor_in(DimScreen offset, DimScreen size) const;
+
     GUI(const InputBuffer* input_buffer, double screen_width, double screen_height) :
         m_input_buffer { input_buffer },
         m_screen_width { screen_width },
         m_screen_height { screen_height },
         m_current_font { nullptr },
+        m_current_color_scheme(m_default_color_scheme),
+        m_current_widget_alignment(m_default_widget_alignment),
         m_buttons_prev(static_cast<int>(Button::MAX), false),
         m_buttons { m_buttons_prev }
     {}
@@ -218,16 +240,24 @@ public:
     void transform_pop();
 
     void set_current_font(void *font) { m_current_font = font; }
+    void reset_default_color_scheme() { m_current_color_scheme = m_default_color_scheme; }
+    void set_current_color_scheme(const ColorScheme& color_scheme)
+    {
+        m_current_color_scheme = color_scheme;
+    }
+    void reset_default_widget_alignment() { m_current_widget_alignment = m_default_widget_alignment; }
+    void set_current_widget_alignment(int x) { m_current_widget_alignment = x; }
 
     void label(
-        Color text_color,
         const std::string& text);
 
     void button_text(
-        Color border_color,
-        Color bg_color,
-        Color text_color,
         DimScreen padding,
+        Callback callback,
+        const std::string& text);
+
+    void button_text_sized(
+        DimScreen size,
         Callback callback,
         const std::string& text);
 };
