@@ -490,13 +490,6 @@ class StateMachineImpl {
         }
     }
 
-    void m_unwelcome_transition()
-    {
-        if (m_potential_transition()) {
-            LOG_WARNING("Unwelcome state transition request e.g. after a draw handler");
-        }
-    }
-
 public:
     StateMachineImpl(std::shared_ptr<StateNode> init_state) :
         m_current_state { init_state }
@@ -547,7 +540,7 @@ public:
     {
         if (m_current_state) {
             m_current_state->draw(weight);
-            m_unwelcome_transition();
+            m_potential_transition();
         }
     }
 };
@@ -815,7 +808,7 @@ public:
             m_process_events(client);
             if (client.is_over() || m_kill_flag) break;
             m_realtime_loop_step(current_time, accumulator, client);
-            if (client.is_over()) break;
+            if (client.is_over() || m_kill_flag) break;
             al_rest(0.001);
         }
     }
