@@ -144,15 +144,14 @@ enum class Button {
     MAX
 };
 
-// State capturing and storing input information based on input events
-class InputBuffer {
+class InputState {
     std::vector<bool> m_keys;
     std::vector<bool> m_buttons;
 
 public:
     DimScreen cursor;
 
-    InputBuffer() :
+    InputState() :
         m_keys(static_cast<int>(Key::MAX), false),
         m_buttons(static_cast<int>(Button::MAX), false),
         cursor { 0, 0 }
@@ -163,103 +162,6 @@ public:
     void on_cursor(DimScreen position) { cursor = position; }
     bool keys(Key key) const { return m_keys[static_cast<int>(key)]; }
     bool buttons(Button button) const { return m_buttons[static_cast<int>(button)]; }
-};
-
-// Immediate mode GUI
-// ==================
-
-class GUI {
-public:
-    typedef std::function<void ()> Callback;
-
-    struct ColorScheme {
-        Color bg_regular;
-        Color bg_active;
-        Color bg_inactive;
-        Color border_regular;
-        Color border_active;
-        Color border_inactive;
-        Color text_regular;
-        Color text_active;
-        Color text_inactive;
-    };
-
-    struct Alignment {
-        enum Enum {
-            RIGHT = 0x1,
-            CENTER = 0x2,
-            LEFT = 0x4,
-            TOP = 0x8,
-            MIDDLE = 0x10,
-            BOTTOM = 0x20
-        };
-    };
-
-
-private:
-    const InputBuffer *m_input_buffer;
-    double m_screen_width, m_screen_height;
-    void *m_current_font;
-    static ColorScheme m_default_color_scheme;
-    ColorScheme m_current_color_scheme;
-    static int m_default_widget_alignment;
-    int m_current_widget_alignment;
-    std::vector<DimScreen> m_transform_stack;
-    std::vector<bool> m_buttons_prev, m_buttons;
-
-    DimScreen m_compute_origin() const;
-    DimScreen m_text_size(const std::string &text) const;
-
-public:
-    bool clicked(Button button) const;
-    bool cursor_in(DimScreen offset, DimScreen size) const;
-
-    GUI(const InputBuffer* input_buffer, double screen_width, double screen_height) :
-        m_input_buffer { input_buffer },
-        m_screen_width { screen_width },
-        m_screen_height { screen_height },
-        m_current_font { nullptr },
-        m_current_color_scheme(m_default_color_scheme),
-        m_current_widget_alignment(m_default_widget_alignment),
-        m_buttons_prev(static_cast<int>(Button::MAX), false),
-        m_buttons { m_buttons_prev }
-    {}
-
-    GUI() = default;
-    GUI(const GUI&) = default;
-    GUI(GUI&&) = default;
-    GUI& operator=(const GUI&) = default;
-    GUI& operator=(GUI&&) = default;
-
-    void tick();
-    void transform_reset();
-    void transform_push_shift(const DimScreen& shift);
-    void transform_push_box_align(int alignment, const DimScreen& size);
-    void transform_push_screen_align(int alignment);
-    void transform_push_again();
-    void transform_pop();
-
-    void set_current_font(void *font) { m_current_font = font; }
-    void reset_default_color_scheme() { m_current_color_scheme = m_default_color_scheme; }
-    void set_current_color_scheme(const ColorScheme& color_scheme)
-    {
-        m_current_color_scheme = color_scheme;
-    }
-    void reset_default_widget_alignment() { m_current_widget_alignment = m_default_widget_alignment; }
-    void set_current_widget_alignment(int x) { m_current_widget_alignment = x; }
-
-    void label(
-        const std::string& text);
-
-    void button_text(
-        DimScreen padding,
-        Callback callback,
-        const std::string& text);
-
-    void button_text_sized(
-        DimScreen size,
-        Callback callback,
-        const std::string& text);
 };
 
 // State interface definition
@@ -277,7 +179,6 @@ struct PlatformClient {
     virtual void tick(double dt) = 0;
     virtual void draw(double weight) = 0;
 };
-
 
 // State node is an object that can be plugged in directly to the platform
 // object as it implements the PlatformClient interface, but it can also be
@@ -341,6 +242,148 @@ struct StateMachine : public PlatformClient {
     void on_cursor(DimScreen position) override;
     void tick(double dt) override;
     void draw(double weight) override;
+};
+
+// OOP GUI
+// =======
+
+// This is a type of the most generic callback possible. Using the capturing
+// mechanism can render this type very useful. I hope there will be no need
+// for any more fancy callback types.
+using Callback = std::function<void()>;
+
+// Bit distinct constants for the basic vertical and horizontal alignment.
+struct Alignment {
+    enum Enum {
+        RIGHT = 0x1,
+        CENTER = 0x2,
+        LEFT = 0x4,
+        TOP = 0x8,
+        MIDDLE = 0x10,
+        BOTTOM = 0x20
+    };
+};
+
+// A set of color definitions to be shared between the UI widgets so that they
+// share a common color scheme.
+struct ColorScheme {
+    Color bg_regular;
+    Color bg_active;
+    Color bg_inactive;
+    Color border_regular;
+    Color border_active;
+    Color border_inactive;
+    Color text_regular;
+    Color text_active;
+    Color text_inactive;
+};
+
+// Constants that define the common GUI scheme that aren't colors.
+struct LayoutScheme {
+    void *default_font;
+    double border_width;
+    DimScreen button_padding;
+    DimScreen rail_padding;
+};
+
+// Common base for the widget classes.
+struct Widget {
+protected:
+
+    // Below are the references to the global resources shared among all the
+    // widgets. They define the look and feel as well as provide the
+    // information from the outside world:
+
+    std::shared_ptr<ColorScheme> t_color_scheme;
+    std::shared_ptr<LayoutScheme> t_layout_scheme;
+    std::shared_ptr<InputState> t_input_state;
+
+    // Common property of all the widgets.
+    DimScreen t_offset { 0, 0 };
+
+public:
+    Widget(const std::shared_ptr<ColorScheme>& color_scheme,
+           const std::shared_ptr<LayoutScheme>& layout_scheme,
+           const std::shared_ptr<InputState>& input_state,
+           const DimScreen& offset) :
+        t_color_scheme { color_scheme },
+        t_layout_scheme { layout_scheme },
+        t_input_state { input_state },
+        t_offset(offset)
+    {}
+
+    virtual ~Widget() {}
+
+    // Inversion of control for the regular GUI stuff:
+
+    virtual void on_click(Button) {}
+    virtual void draw() {}
+
+    // Layout and alignment control via the sizes and offsets.
+
+    virtual DimScreen get_size() const { return { 0, 0 }; }
+
+    const DimScreen& get_offset() const { return t_offset; }
+    virtual void set_offset(const DimScreen& offset) { t_offset = offset; }
+
+    // Helper algorithms:
+
+    virtual bool point_in(const DimScreen& point) const;
+    static DimScreen align(DimScreen origin, const DimScreen& size, int alignment);
+};
+
+// An extension to the Widget concept in the way that it allows for storing
+// other widgets and perform aggregated operations on all of its children.
+struct WidgetContainer : public Widget {
+    virtual ~WidgetContainer() {}
+    WidgetContainer(
+            const std::shared_ptr<ColorScheme>& color_scheme,
+            const std::shared_ptr<LayoutScheme>& layout_scheme,
+            const std::shared_ptr<InputState>& input_state,
+            const DimScreen& offset) :
+        Widget { color_scheme, layout_scheme, input_state, offset }
+    {}
+    virtual void insert(std::unique_ptr<Widget> widget) = 0;
+    virtual void remove(Widget* widget) = 0;
+    virtual bool contains(Widget* widget) = 0;
+    virtual void clear() = 0;
+};
+
+struct WidgetFactoryImpl;
+
+// A type erasing common constructor for the objects of all the widget related
+// types. It handles a simple dependency injection scheme so that the
+// construction API is limited to the necessary minimum whereas all the complex
+// construction of the actual GUI objects is hidden in the implementation code.
+struct WidgetFactory {
+
+    WidgetFactoryImpl *m_impl;
+
+    WidgetFactory(const std::shared_ptr<InputState>& input_state, Resources& resources);
+    ~WidgetFactory();
+
+    std::unique_ptr<Widget> make_label(
+            const std::string& text,
+            const DimScreen& offset = { 0, 0 });
+
+    std::unique_ptr<Widget> make_button(
+            std::unique_ptr<Widget> sub_widget,
+            Callback callback,
+            const DimScreen& offset = { 0, 0 });
+
+    std::unique_ptr<Widget> make_button_sized(
+            std::unique_ptr<Widget> sub_widget,
+            Callback callback,
+            const DimScreen& size,
+            const DimScreen& offset = { 0, 0 });
+
+    std::unique_ptr<WidgetContainer> make_container_free(
+            const DimScreen& offset = { 0, 0 });
+
+    std::unique_ptr<WidgetContainer> make_container_rail(
+            bool vertical,
+            int children_alignment,
+            const DimScreen& offset = { 0, 0 });
 };
 
 // Core object

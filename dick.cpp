@@ -7,6 +7,7 @@
 #include <numeric>
 #include <utility>
 #include <iostream>
+#include <algorithm>
 
 #include <allegro5/allegro_ttf.h>
 #include <allegro5/allegro_font.h>
@@ -155,245 +156,6 @@ Resources::Resources(Resources *parent, const std::string &path_prefix) :
 Resources::~Resources() { delete m_impl; }
 void *Resources::get_image(const std::string &path) { return m_impl->get_image(path, true); }
 void *Resources::get_font(const std::string &path, int size) { return m_impl->get_font(path, size, true); }
-
-GUI::ColorScheme GUI::m_default_color_scheme {
-    Color { 0.76, 0.74, 0.72 },
-    Color { 0.86, 0.84, 0.82 },
-    Color { 0.76, 0.74, 0.72 },
-    Color { 0.66, 0.64, 0.62 },
-    Color { 0.76, 0.74, 0.72 },
-    Color { 0.66, 0.64, 0.62 },
-    Color { 0.0, 0.0, 0.0 },
-    Color { 0.1, 0.1, 0.0 },
-    Color { 0.5, 0.5, 0.5 }
-};
-
-int GUI::m_default_widget_alignment = GUI::Alignment::TOP | GUI::Alignment::LEFT;
-
-DimScreen GUI::m_compute_origin() const
-{
-    return std::accumulate(
-            begin(m_transform_stack),
-            end(m_transform_stack),
-            DimScreen { 0, 0 },
-            [](const DimScreen& a, const DimScreen& b)
-            {
-                return DimScreen { a.x + b.x, a.y + b.y };
-            });
-}
-
-DimScreen GUI::m_text_size(const std::string &text) const
-{
-    return {
-        static_cast<double>(al_get_text_width(static_cast<ALLEGRO_FONT*>(m_current_font), text.c_str())),
-        static_cast<double>(al_get_font_line_height(static_cast<ALLEGRO_FONT*>(m_current_font)))
-    };
-}
-
-bool GUI::clicked(Button button) const
-{
-    if (!m_input_buffer) {
-        return false;
-    }
-    return !m_buttons_prev[static_cast<int>(button)] &&
-        m_buttons[static_cast<int>(button)];
-}
-
-bool GUI::cursor_in(DimScreen offset, DimScreen size) const
-{
-    if (!m_input_buffer) {
-        return false;
-    }
-    double x0 = offset.x, y0 = offset.y;
-    double x1 = x0 + size.x, y1 = y0 + size.y;
-    double cx = m_input_buffer->cursor.x;
-    double cy = m_input_buffer->cursor.y;
-    return cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1;
-}
-
-void GUI::tick()
-{
-    for (int i = 1; i < static_cast<int>(Button::MAX); ++i) {
-        m_buttons_prev[i] = m_buttons[i];
-        m_buttons[i] = m_input_buffer->buttons(static_cast<Button>(i));
-    }
-}
-
-void GUI::transform_reset()
-{
-    m_transform_stack.clear();
-}
-
-void GUI::transform_push_shift(const DimScreen& shift)
-{
-    m_transform_stack.push_back(shift);
-}
-
-void GUI::transform_push_box_align(int alignment, const DimScreen& size)
-{
-    DimScreen transform { 0, 0 };
-
-    assert(
-        !!(alignment & Alignment::RIGHT) +
-        !!(alignment & Alignment::CENTER) +
-        !!(alignment & Alignment::LEFT) <= 1);
-
-    assert(
-        !!(alignment & Alignment::TOP) +
-        !!(alignment & Alignment::MIDDLE) +
-        !!(alignment & Alignment::BOTTOM) <= 1);
-
-    if (alignment & Alignment::RIGHT) {
-        transform.x = -size.x;
-    }
-
-    if (alignment & Alignment::CENTER) {
-        transform.x = -(size.x / 2);
-    }
-
-    if (alignment & Alignment::LEFT) {
-        transform.x = 0;
-    }
-
-    if (alignment & Alignment::TOP) {
-        transform.y = 0;
-    }
-
-    if (alignment & Alignment::MIDDLE) {
-        transform.y = -(size.y / 2);
-    }
-
-    if (alignment & Alignment::BOTTOM) {
-        transform.y = -size.y;
-    }
-
-    m_transform_stack.push_back(std::move(transform));
-}
-
-void GUI::transform_push_screen_align(int alignment)
-{
-    transform_push_box_align(alignment, { -m_screen_width, -m_screen_height });
-}
-
-void GUI::transform_push_again()
-{
-    m_transform_stack.push_back(m_transform_stack.back());
-}
-
-void GUI::transform_pop()
-{
-    m_transform_stack.pop_back();
-}
-
-void GUI::label(
-    const std::string& text)
-{
-    transform_push_box_align(m_current_widget_alignment, m_text_size(text));
-    DimScreen origin = m_compute_origin();
-    transform_pop();
-
-    al_draw_textf(
-            static_cast<ALLEGRO_FONT*>(m_current_font),
-            dick_to_platform_color(m_current_color_scheme.text_regular),
-            origin.x,
-            origin.y,
-            0,
-            "%s",
-            text.c_str());
-}
-
-void GUI::button_text(
-        DimScreen padding,
-        Callback callback,
-        const std::string& text)
-{
-    double text_width = al_get_text_width(static_cast<ALLEGRO_FONT*>(m_current_font), text.c_str());
-    double text_height = al_get_font_line_height(static_cast<ALLEGRO_FONT*>(m_current_font));
-
-    double button_width = 2 * padding.x + text_width;
-    double button_height = 2 * padding.y + text_height;
-
-    transform_push_box_align(m_current_widget_alignment, { button_width, button_height });
-    DimScreen origin = m_compute_origin();
-    transform_pop();
-
-    double x0 = origin.x, y0 = origin.y;
-    double x1 = x0 + button_width;
-    double y1 = y0 + button_height;
-
-    bool cursor_inside =
-        cursor_in({ x0, y0 }, { button_width, button_height });
-
-    ALLEGRO_COLOR bg_color, border_color, text_color;
-    if (cursor_inside) {
-        bg_color = dick_to_platform_color(m_current_color_scheme.bg_active);
-        border_color = dick_to_platform_color(m_current_color_scheme.border_active);
-        text_color = dick_to_platform_color(m_current_color_scheme.text_active);
-    } else {
-        bg_color = dick_to_platform_color(m_current_color_scheme.bg_regular);
-        border_color = dick_to_platform_color(m_current_color_scheme.border_regular);
-        text_color = dick_to_platform_color(m_current_color_scheme.text_regular);
-    }
-
-    al_draw_filled_rectangle(x0, y0, x1, y1, bg_color);
-    al_draw_rectangle(x0, y0, x1, y1, border_color, 2);
-    al_draw_textf(
-            static_cast<ALLEGRO_FONT*>(m_current_font),
-            text_color,
-            x0 + button_width * 0.5,
-            y0 + (button_height - text_height) * 0.5,
-            ALLEGRO_ALIGN_CENTRE,
-            "%s",
-            text.c_str());
-
-    if (callback && clicked(Button::BUTTON_1) && cursor_inside) {
-        callback();
-    }
-}
-
-void GUI::button_text_sized(
-        DimScreen size,
-        Callback callback,
-        const std::string& text)
-{
-    transform_push_box_align(m_current_widget_alignment, size);
-    DimScreen origin = m_compute_origin();
-    transform_pop();
-
-    double text_height = al_get_font_line_height(static_cast<ALLEGRO_FONT*>(m_current_font));
-
-    double x0 = origin.x, y0 = origin.y;
-    double x1 = x0 + size.x;
-    double y1 = y0 + size.y;
-
-    bool cursor_inside = cursor_in({ x0, y0 }, { x1 - x0, y1 - y0 });
-
-    ALLEGRO_COLOR bg_color, border_color, text_color;
-    if (cursor_inside) {
-        bg_color = dick_to_platform_color(m_current_color_scheme.bg_active);
-        border_color = dick_to_platform_color(m_current_color_scheme.border_active);
-        text_color = dick_to_platform_color(m_current_color_scheme.text_active);
-    } else {
-        bg_color = dick_to_platform_color(m_current_color_scheme.bg_regular);
-        border_color = dick_to_platform_color(m_current_color_scheme.border_regular);
-        text_color = dick_to_platform_color(m_current_color_scheme.text_regular);
-    }
-
-    al_draw_filled_rectangle(x0, y0, x1, y1, bg_color);
-    al_draw_rectangle(x0, y0, x1, y1, border_color, 2);
-    al_draw_textf(
-            static_cast<ALLEGRO_FONT*>(m_current_font),
-            text_color,
-            x0 + size.x * 0.5,
-            y0 + (size.y - text_height) * 0.5,
-            ALLEGRO_ALIGN_CENTRE,
-            "%s",
-            text.c_str());
-
-    if (callback && clicked(Button::BUTTON_1) && cursor_inside) {
-        callback();
-    }
-}
 
 struct StateFadeBlack : public dick::StateNode {
     std::shared_ptr<dick::StateNode> m_child;
@@ -556,6 +318,555 @@ void StateMachine::on_button(Button button, bool down) { m_impl->on_button(butto
 void StateMachine::on_cursor(DimScreen position) { m_impl->on_cursor(position); }
 void StateMachine::tick(double dt) { m_impl->tick(dt); }
 void StateMachine::draw(double weight) { m_impl->draw(weight); }
+
+bool Widget::point_in(const DimScreen &point) const
+{
+    const DimScreen &size = get_size();
+    const double x0 = t_offset.x;
+    const double y0 = t_offset.y;
+    const double x1 = x0 + size.x;
+    const double y1 = y0 + size.y;
+    return point.x >= x0 && point.x <= x1 && point.y >= y0 && point.y <= y1;
+}
+
+DimScreen Widget::align(DimScreen origin, const DimScreen& size, int alignment)
+{
+    if (alignment & Alignment::RIGHT) {
+        origin.x -= size.x;
+    }
+
+    if (alignment & Alignment::CENTER) {
+        origin.x -= size.x / 2;
+    }
+
+    if (alignment & Alignment::LEFT) {
+        origin.x += 0;
+    }
+
+    if (alignment & Alignment::TOP) {
+        origin.y += 0;
+    }
+
+    if (alignment & Alignment::MIDDLE) {
+        origin.y -= size.y / 2;
+    }
+
+    if (alignment & Alignment::BOTTOM) {
+        origin.y -= size.y;
+    }
+
+    return origin;
+}
+
+struct WidgetLabel : public Widget {
+
+    DimScreen m_size;
+    std::string m_text;
+
+    WidgetLabel(
+            const std::shared_ptr<ColorScheme>& color_scheme,
+            const std::shared_ptr<LayoutScheme>& layout_scheme,
+            const std::shared_ptr<InputState>& input_state,
+            const std::string &text,
+            const DimScreen& offset) :
+        Widget { color_scheme, layout_scheme, input_state, offset },
+        m_size {
+            static_cast<double>(
+                al_get_text_width(
+                    static_cast<ALLEGRO_FONT*>(
+                        layout_scheme->default_font
+                    ),
+                    text.c_str()
+                )
+            ),
+            static_cast<double>(
+                al_get_font_line_height(
+                    static_cast<ALLEGRO_FONT*>(
+                        layout_scheme->default_font
+                    )
+                )
+            )
+        },
+        m_text { text }
+    {
+    }
+
+    void draw() override
+    {
+        al_draw_textf(
+            static_cast<ALLEGRO_FONT*>(t_layout_scheme->default_font),
+            dick_to_platform_color(t_color_scheme->text_regular),
+            t_offset.x,
+            t_offset.y,
+            0,
+            "%s",
+            m_text.c_str());
+    }
+
+    DimScreen get_size() const override
+    {
+        return m_size;
+    }
+};
+
+struct WidgetButton : public Widget {
+
+    DimScreen m_size;
+    std::unique_ptr<Widget> m_sub_widget;
+    Callback m_callback;
+
+    void m_compute_sub_offset()
+    {
+        DimScreen middle = t_offset;
+        middle.x += m_size.x / 2;
+        middle.y += m_size.y / 2;
+        const DimScreen& sub_size = m_sub_widget->get_size();
+        m_sub_widget->set_offset(
+            align(
+                middle,
+                sub_size,
+                Alignment::MIDDLE | Alignment::CENTER
+            )
+        );
+    }
+
+    WidgetButton(
+            const std::shared_ptr<ColorScheme>& color_scheme,
+            const std::shared_ptr<LayoutScheme>& layout_scheme,
+            const std::shared_ptr<InputState>& input_state,
+            std::unique_ptr<Widget> sub_widget,
+            Callback callback,
+            const DimScreen& size,
+            const DimScreen& offset) :
+        Widget { color_scheme, layout_scheme, input_state, offset },
+        m_size(size),
+        m_sub_widget { std::move(sub_widget) },
+        m_callback { callback }
+    {
+        if (size.x == 0 && size.y == 0) {
+            const DimScreen& sub_size = m_sub_widget->get_size();
+            m_size.x = sub_size.x + 2 * layout_scheme->button_padding.x;
+            m_size.y = sub_size.y + 2 * layout_scheme->button_padding.y;
+        }
+        m_compute_sub_offset();
+    }
+
+    void on_click(Button button) override
+    {
+        if (button == Button::BUTTON_1 && point_in(t_input_state->cursor)) {
+            m_callback();
+        }
+    }
+
+    void draw() override
+    {
+        double x0 = t_offset.x;
+        double y0 = t_offset.y;
+        double x1 = x0 + m_size.x;
+        double y1 = y0 + m_size.y;
+
+        ALLEGRO_COLOR bg_color;
+        ALLEGRO_COLOR border_color;
+        ALLEGRO_COLOR text_color;
+
+        if (point_in(t_input_state->cursor)) {
+            bg_color = dick_to_platform_color(t_color_scheme->bg_active);
+            border_color = dick_to_platform_color(t_color_scheme->border_active);
+            text_color = dick_to_platform_color(t_color_scheme->text_active);
+        } else {
+            bg_color = dick_to_platform_color(t_color_scheme->bg_regular);
+            border_color = dick_to_platform_color(t_color_scheme->border_regular);
+            text_color = dick_to_platform_color(t_color_scheme->text_regular);
+        }
+
+        al_draw_filled_rectangle(x0, y0, x1, y1, bg_color);
+        al_draw_rectangle(x0, y0, x1, y1, border_color, t_layout_scheme->border_width);
+
+        m_sub_widget->draw();
+    }
+
+    DimScreen get_size() const override
+    {
+        return m_size;
+    }
+
+    void set_offset(const DimScreen& offset) override
+    {
+        t_offset = offset;
+        m_compute_sub_offset();
+    }
+};
+
+struct WidgetContainerFree : public WidgetContainer {
+
+    std::vector<std::unique_ptr<Widget>> m_children;
+
+    WidgetContainerFree(
+            const std::shared_ptr<ColorScheme>& color_scheme,
+            const std::shared_ptr<LayoutScheme>& layout_scheme,
+            const std::shared_ptr<InputState>& input_state,
+            const DimScreen& offset) :
+        WidgetContainer { color_scheme, layout_scheme, input_state, offset }
+    {
+    }
+
+    void on_click(Button button) override
+    {
+        for (const auto& child : m_children) {
+            child->on_click(button);
+        }
+    }
+
+    void draw() override
+    {
+        for (const auto& child : m_children) {
+            child->draw();
+        }
+    }
+
+    void set_offset(const DimScreen& offset) override
+    {
+        double dx = offset.x;
+        double dy = offset.y;
+        for (const auto& child : m_children) {
+            const DimScreen& child_offset = child->get_offset();
+            child->set_offset({
+                child_offset.x + dx,
+                child_offset.y + dy });
+        }
+    }
+
+    bool point_in(const DimScreen&) const override
+    {
+        return true;
+    }
+
+    void insert(std::unique_ptr<Widget> widget) override
+    {
+        const DimScreen& current_offset = widget->get_offset();
+        widget->set_offset({
+            current_offset.x + t_offset.x,
+            current_offset.y + t_offset.y });
+        m_children.push_back(std::move(widget));
+    }
+
+    void remove(Widget* widget) override
+    {
+        auto it = std::find_if(
+                begin(m_children),
+                end(m_children),
+                [widget](const std::unique_ptr<Widget>& child)
+                {
+                    return child.get() == widget;
+                });
+
+        if (it != end(m_children)) {
+            m_children.erase(it);
+        }
+    }
+
+    bool contains(Widget* widget) override
+    {
+        auto it = std::find_if(
+                begin(m_children),
+                end(m_children),
+                [widget](const std::unique_ptr<Widget>& child)
+                {
+                    return child.get() == widget;
+                });
+
+        return it != end(m_children);
+    }
+
+    void clear() override
+    {
+        m_children.clear();
+    }
+};
+
+struct WidgetContainerRail : public WidgetContainer {
+
+    bool m_vertical;
+    int m_children_alignment;
+    std::vector<std::unique_ptr<Widget>> m_children;
+
+    void m_arrange_children()
+    {
+        DimScreen current_offset = t_offset;
+        for (const std::unique_ptr<Widget>& child : m_children) {
+            const DimScreen& child_size = child->get_size();
+            child->set_offset(align(current_offset, child_size, m_children_alignment));
+            if (m_vertical) {
+                current_offset.y += child_size.y + t_layout_scheme->rail_padding.y;
+            } else {
+                current_offset.x += child_size.x + t_layout_scheme->rail_padding.x;
+            }
+        }
+    }
+
+    WidgetContainerRail(
+            const std::shared_ptr<ColorScheme>& color_scheme,
+            const std::shared_ptr<LayoutScheme>& layout_scheme,
+            const std::shared_ptr<InputState>& input_state,
+            bool vertical,
+            int children_alignment,
+            const DimScreen& offset) :
+        WidgetContainer { color_scheme, layout_scheme, input_state, offset },
+        m_vertical { vertical },
+        m_children_alignment { children_alignment }
+    {
+    }
+
+    void on_click(Button button) override
+    {
+        for (const auto& child : m_children) {
+            child->on_click(button);
+        }
+    }
+
+    void draw() override
+    {
+        for (const auto& child : m_children) {
+            child->draw();
+        }
+    }
+
+    void set_offset(const DimScreen& offset) override
+    {
+        double dx = offset.x;
+        double dy = offset.y;
+        for (const auto& child : m_children) {
+            const DimScreen& child_offset = child->get_offset();
+            child->set_offset({
+                child_offset.x + dx,
+                child_offset.y + dy });
+        }
+    }
+
+    bool point_in(const DimScreen&) const override
+    {
+        return true;
+    }
+
+    void insert(std::unique_ptr<Widget> widget) override
+    {
+        m_children.push_back(std::move(widget));
+        m_arrange_children();
+    }
+
+    void remove(Widget* widget) override
+    {
+        auto it = std::find_if(
+                begin(m_children),
+                end(m_children),
+                [widget](const std::unique_ptr<Widget>& child)
+                {
+                    return child.get() == widget;
+                });
+
+        if (it != end(m_children)) {
+            m_children.erase(it);
+            m_arrange_children();
+        }
+    }
+
+    bool contains(Widget* widget) override
+    {
+        auto it = std::find_if(
+                begin(m_children),
+                end(m_children),
+                [widget](const std::unique_ptr<Widget>& child)
+                {
+                    return child.get() == widget;
+                });
+
+        return it != end(m_children);
+    }
+
+    void clear() override
+    {
+        m_children.clear();
+    }
+};
+
+struct WidgetFactoryImpl {
+
+    void *m_default_font;
+
+    std::shared_ptr<ColorScheme> m_color_scheme;
+    std::shared_ptr<LayoutScheme> m_layout_scheme;
+    std::shared_ptr<InputState> m_input_state;
+
+    WidgetFactoryImpl(
+            const std::shared_ptr<InputState>& input_state,
+            Resources& resources) :
+        m_default_font {
+            resources.get_font("default.ttf", 24)
+        },
+        m_color_scheme {
+            new ColorScheme {
+                Color { 0.76, 0.74, 0.72 },
+                Color { 0.86, 0.84, 0.82 },
+                Color { 0.76, 0.74, 0.72 },
+                Color { 0.66, 0.64, 0.62 },
+                Color { 0.76, 0.74, 0.72 },
+                Color { 0.66, 0.64, 0.62 },
+                Color { 0.0, 0.0, 0.0 },
+                Color { 0.1, 0.1, 0.0 },
+                Color { 0.5, 0.5, 0.5 }
+            }
+        },
+        m_layout_scheme {
+            new LayoutScheme {
+                m_default_font,
+                2.0,
+                { 5.0, 5.0 },
+                { 3.0, 3.0 }
+            }
+        },
+        m_input_state {
+            input_state
+        }
+    {
+    }
+
+    std::unique_ptr<Widget> make_label(
+            const std::string& text,
+            const DimScreen& offset)
+    {
+        std::unique_ptr<Widget> result {
+            new WidgetLabel {
+                m_color_scheme,
+                m_layout_scheme,
+                m_input_state,
+                text,
+                offset
+            }
+        };
+        return result;
+    }
+
+    std::unique_ptr<Widget> make_button(
+            std::unique_ptr<Widget> sub_widget,
+            Callback callback,
+            const DimScreen& offset)
+    {
+        std::unique_ptr<Widget> result {
+            new WidgetButton {
+                m_color_scheme,
+                m_layout_scheme,
+                m_input_state,
+                std::move(sub_widget),
+                callback,
+                { 0, 0 },
+                offset
+            }
+        };
+        return result;
+    }
+
+    std::unique_ptr<Widget> make_button_sized(
+            std::unique_ptr<Widget> sub_widget,
+            Callback callback,
+            const DimScreen& size,
+            const DimScreen& offset)
+    {
+        std::unique_ptr<Widget> result {
+            new WidgetButton {
+                m_color_scheme,
+                m_layout_scheme,
+                m_input_state,
+                std::move(sub_widget),
+                callback,
+                size,
+                offset
+            }
+        };
+        return result;
+    }
+
+    std::unique_ptr<WidgetContainer> make_container_free(
+            const DimScreen& offset)
+    {
+        std::unique_ptr<WidgetContainer> result {
+            new WidgetContainerFree {
+                m_color_scheme,
+                m_layout_scheme,
+                m_input_state,
+                offset
+            }
+        };
+        return result;
+    }
+
+    std::unique_ptr<WidgetContainer> make_container_rail(
+            bool vertical,
+            int children_alignment,
+            const DimScreen& offset)
+    {
+        std::unique_ptr<WidgetContainer> result {
+            new WidgetContainerRail {
+                m_color_scheme,
+                m_layout_scheme,
+                m_input_state,
+                vertical,
+                children_alignment,
+                offset
+            }
+        };
+        return result;
+    }
+};
+
+WidgetFactory::WidgetFactory(
+        const std::shared_ptr<InputState>& input_state,
+        Resources& resources) :
+    m_impl { new WidgetFactoryImpl { input_state, resources } }
+{
+}
+
+WidgetFactory::~WidgetFactory()
+{
+    delete m_impl;
+}
+
+std::unique_ptr<Widget> WidgetFactory::make_label(
+        const std::string& text,
+        const DimScreen& offset)
+{
+    return m_impl->make_label(text, offset);
+}
+
+std::unique_ptr<Widget> WidgetFactory::make_button(
+        std::unique_ptr<Widget> sub_widget,
+        Callback callback,
+        const DimScreen& offset)
+{
+    return m_impl->make_button(std::move(sub_widget), callback, offset);
+}
+
+std::unique_ptr<Widget> WidgetFactory::make_button_sized(
+        std::unique_ptr<Widget> sub_widget,
+        Callback callback,
+        const DimScreen& size,
+        const DimScreen& offset)
+{
+    return m_impl->make_button_sized(std::move(sub_widget), callback, size, offset);
+}
+
+std::unique_ptr<WidgetContainer> WidgetFactory::make_container_free(
+        const DimScreen& offset)
+{
+    return m_impl->make_container_free(offset);
+}
+
+std::unique_ptr<WidgetContainer> WidgetFactory::make_container_rail(
+        bool vertical,
+        int children_alignment,
+        const DimScreen& offset)
+{
+    return m_impl->make_container_rail(vertical, children_alignment, offset);
+}
 
 class PlatformImpl {
 
@@ -724,11 +1035,25 @@ class PlatformImpl {
     }
 
 public:
+    ~PlatformImpl()
+    {
+        m_ev_queue.reset();
+        al_uninstall_audio();
+        al_uninstall_mouse();
+        al_uninstall_keyboard();
+        m_display.reset();
+        al_shutdown_primitives_addon();
+        al_shutdown_ttf_addon();
+        al_shutdown_font_addon();
+        al_shutdown_image_addon();
+        al_uninstall_system();
+    }
+
     PlatformImpl(const DimScreen &screen_size) :
         m_fps { 50.0 },
         m_kill_flag {}
     {
-        if (!al_init()) {
+        if (!al_install_system(ALLEGRO_VERSION_INT, atexit)) {
             throw Error { "Failed initializing core allegro" };
         }
         LOG_TRACE("Initialized core allegro");

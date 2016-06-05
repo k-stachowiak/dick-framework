@@ -25,8 +25,9 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
     double m_rotation;
 
     dick::Resources m_resources;
-    dick::InputBuffer m_input_buffer;
-    dick::GUI m_gui;
+    std::shared_ptr<dick::InputState> m_input_state;
+    dick::WidgetFactory m_widget_factory;
+    std::unique_ptr<dick::WidgetContainer> m_rail;
     ALLEGRO_FONT *m_font;
     ALLEGRO_BITMAP *m_bitmap;
 
@@ -36,14 +37,15 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_cursor { -1.0, -1.0 },
         m_rotation { 0.0 },
         m_resources { global_resources },
-        m_gui { &m_input_buffer, SCREEN_W, SCREEN_H },
+        m_input_state { new dick::InputState },
+        m_widget_factory { m_input_state, m_resources },
         m_font { static_cast<ALLEGRO_FONT*>(m_resources.get_font(FONT_NAME, FONT_SIZE)) },
         m_bitmap { static_cast<ALLEGRO_BITMAP*>(m_resources.get_image(IMAGE_NAME)) }
     {}
 
     void on_key(dick::Key key, bool down) override
     {
-        m_input_buffer.on_key(key, down);
+        m_input_state->on_key(key, down);
 
         if (down) {
             m_last_key = key;
@@ -56,24 +58,25 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
 
     void on_button(dick::Button button, bool down) override
     {
-        m_input_buffer.on_button(button, down);
+        m_input_state->on_button(button, down);
 
         if (down) {
             m_last_button = button;
+            if (m_rail) {
+                m_rail->on_click(button);
+            }
         }
     }
 
     void on_cursor(dick::DimScreen position) override
     {
-        m_input_buffer.on_cursor(position);
+        m_input_state->on_cursor(position);
         m_cursor = position;
         m_rotation = atan2(position.y - SCREEN_H / 2, position.x - SCREEN_W / 2);
     }
 
-    void draw(double weight) override
+    void tick(double) override
     {
-        al_clear_to_color(al_map_rgb_f(0.333, 0.55, 0.7));
-
         std::string key_string, button_string, cursor_string;
 
         {
@@ -94,28 +97,22 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
             cursor_string = ss.str();
         }
 
-        m_gui.tick();
+        m_rail = m_widget_factory.make_container_rail(true, 0, { 20, 20 });
+        m_rail->insert(m_widget_factory.make_label(key_string));
+        m_rail->insert(m_widget_factory.make_label(button_string));
+        m_rail->insert(m_widget_factory.make_label(cursor_string));
+        m_rail->insert(m_widget_factory.make_button(
+                    m_widget_factory.make_label("Exit"),
+                    [this](){ t_transition_required = true; }));
+    }
 
-        m_gui.set_current_font(m_font);
+    void draw(double weight) override
+    {
+        al_clear_to_color(al_map_rgb_f(0.333, 0.55, 0.7));
 
-        m_gui.transform_reset();
-        m_gui.reset_default_widget_alignment();
-
-        m_gui.transform_push_shift({ 15, 10 });
-        m_gui.label(key_string);
-
-        m_gui.transform_push_shift({ 0, 30 });
-        m_gui.label(button_string);
-
-        m_gui.transform_push_again();
-        m_gui.label(cursor_string);
-
-        m_gui.transform_reset();
-        m_gui.set_current_widget_alignment(dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT);
-        m_gui.transform_push_shift({ -5, +5 });
-
-        m_gui.transform_push_screen_align(dick::GUI::Alignment::RIGHT | dick::GUI::Alignment::TOP);
-        m_gui.button_text( { 7, 7 }, [this](){ t_transition_required = true; }, "Exit");
+        if (m_rail) {
+            m_rail->draw();
+        }
 
         al_draw_scaled_rotated_bitmap(
                 m_bitmap,
