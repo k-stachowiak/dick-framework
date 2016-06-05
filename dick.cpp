@@ -319,7 +319,7 @@ void StateMachine::on_cursor(DimScreen position) { m_impl->on_cursor(position); 
 void StateMachine::tick(double dt) { m_impl->tick(dt); }
 void StateMachine::draw(double weight) { m_impl->draw(weight); }
 
-bool Widget::point_in(const DimScreen &point) const
+bool GUI::Widget::point_in(const DimScreen &point) const
 {
     const DimScreen &size = get_size();
     const double x0 = t_offset.x;
@@ -329,7 +329,7 @@ bool Widget::point_in(const DimScreen &point) const
     return point.x >= x0 && point.x <= x1 && point.y >= y0 && point.y <= y1;
 }
 
-DimScreen Widget::align(DimScreen origin, const DimScreen& size, int alignment)
+DimScreen GUI::Widget::align(DimScreen origin, const DimScreen& size, int alignment)
 {
     if (alignment & Alignment::RIGHT) {
         origin.x -= size.x;
@@ -358,62 +358,62 @@ DimScreen Widget::align(DimScreen origin, const DimScreen& size, int alignment)
     return origin;
 }
 
-struct WidgetLabel : public Widget {
+struct WidgetLabel : public GUI::Widget {
 
     DimScreen m_size;
     std::string m_text;
 
     WidgetLabel(
-            const std::shared_ptr<ColorScheme>& color_scheme,
-            const std::shared_ptr<LayoutScheme>& layout_scheme,
-            const std::shared_ptr<InputState>& input_state,
-            const std::string &text,
-            const DimScreen& offset) :
-        Widget { color_scheme, layout_scheme, input_state, offset },
-        m_size {
-            static_cast<double>(
-                al_get_text_width(
-                    static_cast<ALLEGRO_FONT*>(
-                        layout_scheme->default_font
-                    ),
-                    text.c_str()
-                )
-            ),
-            static_cast<double>(
-                al_get_font_line_height(
-                    static_cast<ALLEGRO_FONT*>(
-                        layout_scheme->default_font
+                const std::shared_ptr<GUI::ColorScheme>& color_scheme,
+                const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
+                const std::shared_ptr<InputState>& input_state,
+                const std::string &text,
+                const DimScreen& offset) :
+            Widget { color_scheme, layout_scheme, input_state, offset },
+            m_size {
+                static_cast<double>(
+                    al_get_text_width(
+                        static_cast<ALLEGRO_FONT*>(
+                            layout_scheme->default_font
+                        ),
+                        text.c_str()
+                    )
+                ),
+                static_cast<double>(
+                    al_get_font_line_height(
+                        static_cast<ALLEGRO_FONT*>(
+                            layout_scheme->default_font
+                        )
                     )
                 )
-            )
-        },
-        m_text { text }
-    {
-    }
+            },
+            m_text { text }
+        {
+        }
 
-    void draw() override
-    {
-        al_draw_textf(
-            static_cast<ALLEGRO_FONT*>(t_layout_scheme->default_font),
-            dick_to_platform_color(t_color_scheme->text_regular),
-            t_offset.x,
-            t_offset.y,
-            0,
-            "%s",
-            m_text.c_str());
-    }
+        void draw() override
+        {
+            al_draw_textf(
+                static_cast<ALLEGRO_FONT*>(t_layout_scheme->default_font),
+                dick_to_platform_color(t_color_scheme->text_regular),
+                t_offset.x,
+                t_offset.y,
+                0,
+                "%s",
+                m_text.c_str());
+        }
 
-    DimScreen get_size() const override
-    {
-        return m_size;
-    }
-};
+        DimScreen get_size() const override
+        {
+            return m_size;
+        }
+    };
 
-struct WidgetButton : public Widget {
+    struct WidgetButton : public GUI::Widget {
 
     DimScreen m_size;
     std::unique_ptr<Widget> m_sub_widget;
-    Callback m_callback;
+    GUI::Callback m_callback;
 
     void m_compute_sub_offset()
     {
@@ -425,17 +425,17 @@ struct WidgetButton : public Widget {
             align(
                 middle,
                 sub_size,
-                Alignment::MIDDLE | Alignment::CENTER
+                GUI::Alignment::MIDDLE | GUI::Alignment::CENTER
             )
         );
     }
 
     WidgetButton(
-            const std::shared_ptr<ColorScheme>& color_scheme,
-            const std::shared_ptr<LayoutScheme>& layout_scheme,
+            const std::shared_ptr<GUI::ColorScheme>& color_scheme,
+            const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
             const std::shared_ptr<InputState>& input_state,
-            std::unique_ptr<Widget> sub_widget,
-            Callback callback,
+            std::unique_ptr<GUI::Widget> sub_widget,
+            GUI::Callback callback,
             const DimScreen& size,
             const DimScreen& offset) :
         Widget { color_scheme, layout_scheme, input_state, offset },
@@ -497,13 +497,13 @@ struct WidgetButton : public Widget {
     }
 };
 
-struct WidgetContainerFree : public WidgetContainer {
+struct WidgetContainerFree : public GUI::WidgetContainer {
 
     std::vector<std::unique_ptr<Widget>> m_children;
 
     WidgetContainerFree(
-            const std::shared_ptr<ColorScheme>& color_scheme,
-            const std::shared_ptr<LayoutScheme>& layout_scheme,
+            const std::shared_ptr<GUI::ColorScheme>& color_scheme,
+            const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
             const std::shared_ptr<InputState>& input_state,
             const DimScreen& offset) :
         WidgetContainer { color_scheme, layout_scheme, input_state, offset }
@@ -584,7 +584,7 @@ struct WidgetContainerFree : public WidgetContainer {
     }
 };
 
-struct WidgetContainerRail : public WidgetContainer {
+struct WidgetContainerRail : public GUI::WidgetContainer {
 
     bool m_vertical;
     int m_children_alignment;
@@ -605,8 +605,8 @@ struct WidgetContainerRail : public WidgetContainer {
     }
 
     WidgetContainerRail(
-            const std::shared_ptr<ColorScheme>& color_scheme,
-            const std::shared_ptr<LayoutScheme>& layout_scheme,
+            const std::shared_ptr<GUI::ColorScheme>& color_scheme,
+            const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
             const std::shared_ptr<InputState>& input_state,
             bool vertical,
             int children_alignment,
@@ -689,22 +689,22 @@ struct WidgetContainerRail : public WidgetContainer {
     }
 };
 
-struct WidgetFactoryImpl {
+struct GUIImpl {
 
     void *m_default_font;
 
-    std::shared_ptr<ColorScheme> m_color_scheme;
-    std::shared_ptr<LayoutScheme> m_layout_scheme;
+    std::shared_ptr<GUI::ColorScheme> m_color_scheme;
+    std::shared_ptr<GUI::LayoutScheme> m_layout_scheme;
     std::shared_ptr<InputState> m_input_state;
 
-    WidgetFactoryImpl(
+    GUIImpl(
             const std::shared_ptr<InputState>& input_state,
             Resources& resources) :
         m_default_font {
             resources.get_font("default.ttf", 24)
         },
         m_color_scheme {
-            new ColorScheme {
+            new GUI::ColorScheme {
                 Color { 0.76, 0.74, 0.72 },
                 Color { 0.86, 0.84, 0.82 },
                 Color { 0.76, 0.74, 0.72 },
@@ -717,7 +717,7 @@ struct WidgetFactoryImpl {
             }
         },
         m_layout_scheme {
-            new LayoutScheme {
+            new GUI::LayoutScheme {
                 m_default_font,
                 2.0,
                 { 5.0, 5.0 },
@@ -730,11 +730,11 @@ struct WidgetFactoryImpl {
     {
     }
 
-    std::unique_ptr<Widget> make_label(
+    std::unique_ptr<GUI::Widget> make_label(
             const std::string& text,
             const DimScreen& offset)
     {
-        std::unique_ptr<Widget> result {
+        std::unique_ptr<GUI::Widget> result {
             new WidgetLabel {
                 m_color_scheme,
                 m_layout_scheme,
@@ -746,12 +746,12 @@ struct WidgetFactoryImpl {
         return result;
     }
 
-    std::unique_ptr<Widget> make_button(
-            std::unique_ptr<Widget> sub_widget,
-            Callback callback,
+    std::unique_ptr<GUI::Widget> make_button(
+            std::unique_ptr<GUI::Widget> sub_widget,
+            GUI::Callback callback,
             const DimScreen& offset)
     {
-        std::unique_ptr<Widget> result {
+        std::unique_ptr<GUI::Widget> result {
             new WidgetButton {
                 m_color_scheme,
                 m_layout_scheme,
@@ -765,13 +765,13 @@ struct WidgetFactoryImpl {
         return result;
     }
 
-    std::unique_ptr<Widget> make_button_sized(
-            std::unique_ptr<Widget> sub_widget,
-            Callback callback,
+    std::unique_ptr<GUI::Widget> make_button_sized(
+            std::unique_ptr<GUI::Widget> sub_widget,
+            GUI::Callback callback,
             const DimScreen& size,
             const DimScreen& offset)
     {
-        std::unique_ptr<Widget> result {
+        std::unique_ptr<GUI::Widget> result {
             new WidgetButton {
                 m_color_scheme,
                 m_layout_scheme,
@@ -785,10 +785,10 @@ struct WidgetFactoryImpl {
         return result;
     }
 
-    std::unique_ptr<WidgetContainer> make_container_free(
+    std::unique_ptr<GUI::WidgetContainer> make_container_free(
             const DimScreen& offset)
     {
-        std::unique_ptr<WidgetContainer> result {
+        std::unique_ptr<GUI::WidgetContainer> result {
             new WidgetContainerFree {
                 m_color_scheme,
                 m_layout_scheme,
@@ -799,12 +799,12 @@ struct WidgetFactoryImpl {
         return result;
     }
 
-    std::unique_ptr<WidgetContainer> make_container_rail(
+    std::unique_ptr<GUI::WidgetContainer> make_container_rail(
             bool vertical,
             int children_alignment,
             const DimScreen& offset)
     {
-        std::unique_ptr<WidgetContainer> result {
+        std::unique_ptr<GUI::WidgetContainer> result {
             new WidgetContainerRail {
                 m_color_scheme,
                 m_layout_scheme,
@@ -818,35 +818,35 @@ struct WidgetFactoryImpl {
     }
 };
 
-WidgetFactory::WidgetFactory(
+GUI::GUI(
         const std::shared_ptr<InputState>& input_state,
         Resources& resources) :
-    m_impl { new WidgetFactoryImpl { input_state, resources } }
+    m_impl { new GUIImpl { input_state, resources } }
 {
 }
 
-WidgetFactory::~WidgetFactory()
+GUI::~GUI()
 {
     delete m_impl;
 }
 
-std::unique_ptr<Widget> WidgetFactory::make_label(
+std::unique_ptr<GUI::Widget> GUI::make_label(
         const std::string& text,
         const DimScreen& offset)
 {
     return m_impl->make_label(text, offset);
 }
 
-std::unique_ptr<Widget> WidgetFactory::make_button(
-        std::unique_ptr<Widget> sub_widget,
+std::unique_ptr<GUI::Widget> GUI::make_button(
+        std::unique_ptr<GUI::Widget> sub_widget,
         Callback callback,
         const DimScreen& offset)
 {
     return m_impl->make_button(std::move(sub_widget), callback, offset);
 }
 
-std::unique_ptr<Widget> WidgetFactory::make_button_sized(
-        std::unique_ptr<Widget> sub_widget,
+std::unique_ptr<GUI::Widget> GUI::make_button_sized(
+        std::unique_ptr<GUI::Widget> sub_widget,
         Callback callback,
         const DimScreen& size,
         const DimScreen& offset)
@@ -854,13 +854,13 @@ std::unique_ptr<Widget> WidgetFactory::make_button_sized(
     return m_impl->make_button_sized(std::move(sub_widget), callback, size, offset);
 }
 
-std::unique_ptr<WidgetContainer> WidgetFactory::make_container_free(
+std::unique_ptr<GUI::WidgetContainer> GUI::make_container_free(
         const DimScreen& offset)
 {
     return m_impl->make_container_free(offset);
 }
 
-std::unique_ptr<WidgetContainer> WidgetFactory::make_container_rail(
+std::unique_ptr<GUI::WidgetContainer> GUI::make_container_rail(
         bool vertical,
         int children_alignment,
         const DimScreen& offset)

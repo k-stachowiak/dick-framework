@@ -26,8 +26,8 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
 
     dick::Resources m_resources;
     std::shared_ptr<dick::InputState> m_input_state;
-    dick::WidgetFactory m_widget_factory;
-    std::unique_ptr<dick::WidgetContainer> m_rail;
+    dick::GUI m_gui;
+    std::unique_ptr<dick::GUI::WidgetContainer> m_rail;
     ALLEGRO_FONT *m_font;
     ALLEGRO_BITMAP *m_bitmap;
 
@@ -38,7 +38,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_rotation { 0.0 },
         m_resources { global_resources },
         m_input_state { new dick::InputState },
-        m_widget_factory { m_input_state, m_resources },
+        m_gui { m_input_state, m_resources },
         m_font { static_cast<ALLEGRO_FONT*>(m_resources.get_font(FONT_NAME, FONT_SIZE)) },
         m_bitmap { static_cast<ALLEGRO_BITMAP*>(m_resources.get_image(IMAGE_NAME)) }
     {}
@@ -97,12 +97,12 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
             cursor_string = ss.str();
         }
 
-        m_rail = m_widget_factory.make_container_rail(true, 0, { 20, 20 });
-        m_rail->insert(m_widget_factory.make_label(key_string));
-        m_rail->insert(m_widget_factory.make_label(button_string));
-        m_rail->insert(m_widget_factory.make_label(cursor_string));
-        m_rail->insert(m_widget_factory.make_button(
-                    m_widget_factory.make_label("Exit"),
+        m_rail = m_gui.make_container_rail(true, 0, { 20, 20 });
+        m_rail->insert(m_gui.make_label(key_string));
+        m_rail->insert(m_gui.make_label(button_string));
+        m_rail->insert(m_gui.make_label(cursor_string));
+        m_rail->insert(m_gui.make_button(
+                    m_gui.make_label("Exit"),
                     [this](){ t_transition_required = true; }));
     }
 
@@ -137,14 +137,12 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
 int main()
 {
     dick::Platform platform { dick::DimScreen { SCREEN_W, SCREEN_H } };
-
     dick::Resources global_resources;
-    global_resources.get_font(FONT_NAME, FONT_SIZE);
 
     auto main_state = std::shared_ptr<dick::StateNode> { new DemoState { &global_resources } };
 
     dick::StateMachine state_machine {
-            dick::create_state_fade_in_color(main_state, main_state, 1.0, 0.0, 0.0, 0.0)
+        dick::create_state_fade_in_color(main_state, main_state, 1.0, 0.0, 0.0, 0.0)
     };
 
     platform.real_time_loop(state_machine);

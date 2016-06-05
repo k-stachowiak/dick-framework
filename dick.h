@@ -247,120 +247,120 @@ struct StateMachine : public PlatformClient {
 // OOP GUI
 // =======
 
-// This is a type of the most generic callback possible. Using the capturing
-// mechanism can render this type very useful. I hope there will be no need
-// for any more fancy callback types.
-using Callback = std::function<void()>;
+struct GUIImpl;
 
-// Bit distinct constants for the basic vertical and horizontal alignment.
-struct Alignment {
-    enum Enum {
-        RIGHT = 0x1,
-        CENTER = 0x2,
-        LEFT = 0x4,
-        TOP = 0x8,
-        MIDDLE = 0x10,
-        BOTTOM = 0x20
+// A type aggregating the GUI state and construction operations. Functions
+// as the namespace for the GUI related types and constants as well as the
+// type erased GUI elements factory, storing some common configuration shared
+// between all the widget types that is silently passed to the concrete
+// widget constructors maintaining clear API on the surface.
+struct GUI {
+
+    // This is a type of the most generic callback possible. Using the capturing
+    // mechanism can render this type very useful. I hope there will be no need
+    // for any more fancy callback types.
+    typedef std::function<void()> Callback;
+
+    // Bit distinct constants for the basic vertical and horizontal alignment.
+    struct Alignment {
+        enum Enum {
+            RIGHT = 0x1,
+            CENTER = 0x2,
+            LEFT = 0x4,
+            TOP = 0x8,
+            MIDDLE = 0x10,
+            BOTTOM = 0x20
+        };
     };
-};
 
-// A set of color definitions to be shared between the UI widgets so that they
-// share a common color scheme.
-struct ColorScheme {
-    Color bg_regular;
-    Color bg_active;
-    Color bg_inactive;
-    Color border_regular;
-    Color border_active;
-    Color border_inactive;
-    Color text_regular;
-    Color text_active;
-    Color text_inactive;
-};
+    // A set of color definitions to be shared between the UI widgets so that they
+    // share a common color scheme.
+    struct ColorScheme {
+        Color bg_regular;
+        Color bg_active;
+        Color bg_inactive;
+        Color border_regular;
+        Color border_active;
+        Color border_inactive;
+        Color text_regular;
+        Color text_active;
+        Color text_inactive;
+    };
 
-// Constants that define the common GUI scheme that aren't colors.
-struct LayoutScheme {
-    void *default_font;
-    double border_width;
-    DimScreen button_padding;
-    DimScreen rail_padding;
-};
+    // Constants that define the common GUI scheme that aren't colors.
+    struct LayoutScheme {
+        void *default_font;
+        double border_width;
+        DimScreen button_padding;
+        DimScreen rail_padding;
+    };
 
-// Common base for the widget classes.
-struct Widget {
-protected:
+    struct Widget {
+    protected:
 
-    // Below are the references to the global resources shared among all the
-    // widgets. They define the look and feel as well as provide the
-    // information from the outside world:
+        // Below are the references to the global resources shared among all the
+        // widgets. They define the look and feel as well as provide the
+        // information from the outside world:
 
-    std::shared_ptr<ColorScheme> t_color_scheme;
-    std::shared_ptr<LayoutScheme> t_layout_scheme;
-    std::shared_ptr<InputState> t_input_state;
+        std::shared_ptr<ColorScheme> t_color_scheme;
+        std::shared_ptr<LayoutScheme> t_layout_scheme;
+        std::shared_ptr<InputState> t_input_state;
 
-    // Common property of all the widgets.
-    DimScreen t_offset { 0, 0 };
+        // Common property of all the widgets.
+        DimScreen t_offset { 0, 0 };
 
-public:
-    Widget(const std::shared_ptr<ColorScheme>& color_scheme,
-           const std::shared_ptr<LayoutScheme>& layout_scheme,
-           const std::shared_ptr<InputState>& input_state,
-           const DimScreen& offset) :
-        t_color_scheme { color_scheme },
-        t_layout_scheme { layout_scheme },
-        t_input_state { input_state },
-        t_offset(offset)
-    {}
+    public:
+        Widget(const std::shared_ptr<ColorScheme>& color_scheme,
+               const std::shared_ptr<LayoutScheme>& layout_scheme,
+               const std::shared_ptr<InputState>& input_state,
+               const DimScreen& offset) :
+            t_color_scheme { color_scheme },
+            t_layout_scheme { layout_scheme },
+            t_input_state { input_state },
+            t_offset(offset)
+        {}
 
-    virtual ~Widget() {}
+        virtual ~Widget() {}
 
-    // Inversion of control for the regular GUI stuff:
+        // Inversion of control for the regular GUI stuff:
 
-    virtual void on_click(Button) {}
-    virtual void draw() {}
+        virtual void on_click(Button) {}
+        virtual void draw() {}
 
-    // Layout and alignment control via the sizes and offsets.
+        // Layout and alignment control via the sizes and offsets.
 
-    virtual DimScreen get_size() const { return { 0, 0 }; }
+        virtual DimScreen get_size() const { return { 0, 0 }; }
 
-    const DimScreen& get_offset() const { return t_offset; }
-    virtual void set_offset(const DimScreen& offset) { t_offset = offset; }
+        const DimScreen& get_offset() const { return t_offset; }
+        virtual void set_offset(const DimScreen& offset) { t_offset = offset; }
 
-    // Helper algorithms:
+        // Helper algorithms:
 
-    virtual bool point_in(const DimScreen& point) const;
-    static DimScreen align(DimScreen origin, const DimScreen& size, int alignment);
-};
+        virtual bool point_in(const DimScreen& point) const;
+        static DimScreen align(DimScreen origin, const DimScreen& size, int alignment);
+    };
 
-// An extension to the Widget concept in the way that it allows for storing
-// other widgets and perform aggregated operations on all of its children.
-struct WidgetContainer : public Widget {
-    virtual ~WidgetContainer() {}
-    WidgetContainer(
-            const std::shared_ptr<ColorScheme>& color_scheme,
-            const std::shared_ptr<LayoutScheme>& layout_scheme,
-            const std::shared_ptr<InputState>& input_state,
-            const DimScreen& offset) :
-        Widget { color_scheme, layout_scheme, input_state, offset }
-    {}
-    virtual void insert(std::unique_ptr<Widget> widget) = 0;
-    virtual void remove(Widget* widget) = 0;
-    virtual bool contains(Widget* widget) = 0;
-    virtual void clear() = 0;
-};
+    // An extension to the Widget concept in the way that it allows for storing
+    // other widgets and perform aggregated operations on all of its children.
+    struct WidgetContainer : public Widget {
+        virtual ~WidgetContainer() {}
+        WidgetContainer(
+                const std::shared_ptr<ColorScheme>& color_scheme,
+                const std::shared_ptr<LayoutScheme>& layout_scheme,
+                const std::shared_ptr<InputState>& input_state,
+                const DimScreen& offset) :
+            Widget { color_scheme, layout_scheme, input_state, offset }
+        {}
+        virtual void insert(std::unique_ptr<Widget> widget) = 0;
+        virtual void remove(Widget* widget) = 0;
+        virtual bool contains(Widget* widget) = 0;
+        virtual void clear() = 0;
+    };
 
-struct WidgetFactoryImpl;
+    GUIImpl *m_impl;
 
-// A type erasing common constructor for the objects of all the widget related
-// types. It handles a simple dependency injection scheme so that the
-// construction API is limited to the necessary minimum whereas all the complex
-// construction of the actual GUI objects is hidden in the implementation code.
-struct WidgetFactory {
-
-    WidgetFactoryImpl *m_impl;
-
-    WidgetFactory(const std::shared_ptr<InputState>& input_state, Resources& resources);
-    ~WidgetFactory();
+    GUI(const std::shared_ptr<InputState>& input_state, Resources& resources);
+    ~GUI();
 
     std::unique_ptr<Widget> make_label(
             const std::string& text,
