@@ -13,8 +13,6 @@
 
 const int SCREEN_W = 640;
 const int SCREEN_H = 480;
-const std::string FONT_NAME = "Roboto-Medium.ttf";
-const int FONT_SIZE = 20;
 const std::string IMAGE_NAME = "db.png";
 
 struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::StateNode> {
@@ -24,11 +22,13 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
     dick::DimScreen m_cursor;
     double m_rotation;
 
+    double m_red, m_green, m_blue;
+
     dick::Resources m_resources;
     std::shared_ptr<dick::InputState> m_input_state;
     dick::GUI m_gui;
-    std::unique_ptr<dick::GUI::WidgetContainer> m_rail;
-    ALLEGRO_FONT *m_font;
+    std::unique_ptr<dick::GUI::WidgetContainer> m_status_rail;
+    std::unique_ptr<dick::GUI::WidgetContainer> m_menu_rail;
     ALLEGRO_BITMAP *m_bitmap;
 
     DemoState(dick::Resources *global_resources) :
@@ -36,12 +36,30 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_last_button {},
         m_cursor { -1.0, -1.0 },
         m_rotation { 0.0 },
+        m_red { 0.5 }, m_green { 0.5 }, m_blue { 0.5 },
         m_resources { global_resources },
         m_input_state { new dick::InputState },
         m_gui { m_input_state, m_resources },
-        m_font { static_cast<ALLEGRO_FONT*>(m_resources.get_font(FONT_NAME, FONT_SIZE)) },
         m_bitmap { static_cast<ALLEGRO_BITMAP*>(m_resources.get_image(IMAGE_NAME)) }
-    {}
+    {
+        m_menu_rail = m_gui.make_container_rail(
+                dick::GUI::Direction::LEFT,
+                0,
+                dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT,
+                { SCREEN_W, 0 });
+        m_menu_rail->insert(m_gui.make_button(
+                    m_gui.make_label("Exit"),
+                    [this](){ t_transition_required = true; }));
+        m_menu_rail->insert(m_gui.make_button(
+                    m_gui.make_label("Blue"),
+                    [this](){ m_red = 0.333; m_green = 0.5; m_blue = 0.667; }));
+        m_menu_rail->insert(m_gui.make_button(
+                    m_gui.make_label("Green"),
+                    [this](){ m_red = 0.5; m_green = 0.667; m_blue = 0.333; }));
+        m_menu_rail->insert(m_gui.make_button(
+                    m_gui.make_label("Red"),
+                    [this](){ m_red = 0.667; m_green = 0.5; m_blue = 0.333; }));
+    }
 
     void on_key(dick::Key key, bool down) override
     {
@@ -62,9 +80,10 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
 
         if (down) {
             m_last_button = button;
-            if (m_rail) {
-                m_rail->on_click(button);
+            if (m_status_rail) {
+                m_status_rail->on_click(button);
             }
+            m_menu_rail->on_click(button);
         }
     }
 
@@ -97,22 +116,20 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
             cursor_string = ss.str();
         }
 
-        m_rail = m_gui.make_container_rail(true, 0, { 20, 20 });
-        m_rail->insert(m_gui.make_label(key_string));
-        m_rail->insert(m_gui.make_label(button_string));
-        m_rail->insert(m_gui.make_label(cursor_string));
-        m_rail->insert(m_gui.make_button(
-                    m_gui.make_label("Exit"),
-                    [this](){ t_transition_required = true; }));
+        m_status_rail = m_gui.make_container_rail(dick::GUI::Direction::DOWN, 10, 0, { 5, 5 });
+        m_status_rail->insert(m_gui.make_label(key_string));
+        m_status_rail->insert(m_gui.make_label(button_string));
+        m_status_rail->insert(m_gui.make_label(cursor_string));
     }
 
     void draw(double weight) override
     {
-        al_clear_to_color(al_map_rgb_f(0.333, 0.55, 0.7));
+        al_clear_to_color(al_map_rgb_f(m_red, m_green, m_blue));
 
-        if (m_rail) {
-            m_rail->draw();
+        if (m_status_rail) {
+            m_status_rail->draw();
         }
+        m_menu_rail->draw();
 
         al_draw_scaled_rotated_bitmap(
                 m_bitmap,

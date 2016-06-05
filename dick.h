@@ -261,6 +261,16 @@ struct GUI {
     // for any more fancy callback types.
     typedef std::function<void()> Callback;
 
+    // Bit distinct constants for the directions.
+    struct Direction {
+        enum Enum {
+            UP = 0x1,
+            RIGHT = 0x2,
+            DOWN = 0x4,
+            LEFT = 0x8
+        };
+    };
+
     // Bit distinct constants for the basic vertical and horizontal alignment.
     struct Alignment {
         enum Enum {
@@ -292,7 +302,6 @@ struct GUI {
         void *default_font;
         double border_width;
         DimScreen button_padding;
-        DimScreen rail_padding;
     };
 
     struct Widget {
@@ -381,7 +390,8 @@ struct GUI {
             const DimScreen& offset = { 0, 0 });
 
     std::unique_ptr<WidgetContainer> make_container_rail(
-            bool vertical,
+            Direction::Enum direction,
+            double children_spacing,
             int children_alignment,
             const DimScreen& offset = { 0, 0 });
 };

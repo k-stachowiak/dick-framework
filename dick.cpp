@@ -586,7 +586,8 @@ struct WidgetContainerFree : public GUI::WidgetContainer {
 
 struct WidgetContainerRail : public GUI::WidgetContainer {
 
-    bool m_vertical;
+    GUI::Direction::Enum m_direction;
+    double m_children_spacing;
     int m_children_alignment;
     std::vector<std::unique_ptr<Widget>> m_children;
 
@@ -596,10 +597,19 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
         for (const std::unique_ptr<Widget>& child : m_children) {
             const DimScreen& child_size = child->get_size();
             child->set_offset(align(current_offset, child_size, m_children_alignment));
-            if (m_vertical) {
-                current_offset.y += child_size.y + t_layout_scheme->rail_padding.y;
-            } else {
-                current_offset.x += child_size.x + t_layout_scheme->rail_padding.x;
+            switch (m_direction) {
+            case GUI::Direction::UP:
+                current_offset.y -= child_size.y + m_children_spacing;
+                break;
+            case GUI::Direction::RIGHT:
+                current_offset.x += child_size.x + m_children_spacing;
+                break;
+            case GUI::Direction::DOWN:
+                current_offset.y += child_size.y + m_children_spacing;
+                break;
+            case GUI::Direction::LEFT:
+                current_offset.x -= child_size.x + m_children_spacing;
+                break;
             }
         }
     }
@@ -608,11 +618,13 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
             const std::shared_ptr<GUI::ColorScheme>& color_scheme,
             const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
             const std::shared_ptr<InputState>& input_state,
-            bool vertical,
+            GUI::Direction::Enum direction,
+            double children_spacing,
             int children_alignment,
             const DimScreen& offset) :
         WidgetContainer { color_scheme, layout_scheme, input_state, offset },
-        m_vertical { vertical },
+        m_direction { direction },
+        m_children_spacing { children_spacing },
         m_children_alignment { children_alignment }
     {
     }
@@ -701,7 +713,7 @@ struct GUIImpl {
             const std::shared_ptr<InputState>& input_state,
             Resources& resources) :
         m_default_font {
-            resources.get_font("default.ttf", 24)
+            resources.get_font("gui_default.ttf", 20)
         },
         m_color_scheme {
             new GUI::ColorScheme {
@@ -720,8 +732,7 @@ struct GUIImpl {
             new GUI::LayoutScheme {
                 m_default_font,
                 2.0,
-                { 5.0, 5.0 },
-                { 3.0, 3.0 }
+                { 7.0, 5.0 }
             }
         },
         m_input_state {
@@ -800,7 +811,8 @@ struct GUIImpl {
     }
 
     std::unique_ptr<GUI::WidgetContainer> make_container_rail(
-            bool vertical,
+            GUI::Direction::Enum direction,
+            double children_spacing,
             int children_alignment,
             const DimScreen& offset)
     {
@@ -809,7 +821,8 @@ struct GUIImpl {
                 m_color_scheme,
                 m_layout_scheme,
                 m_input_state,
-                vertical,
+                direction,
+                children_spacing,
                 children_alignment,
                 offset
             }
@@ -861,11 +874,12 @@ std::unique_ptr<GUI::WidgetContainer> GUI::make_container_free(
 }
 
 std::unique_ptr<GUI::WidgetContainer> GUI::make_container_rail(
-        bool vertical,
+        Direction::Enum direction,
+        double children_spacing,
         int children_alignment,
         const DimScreen& offset)
 {
-    return m_impl->make_container_rail(vertical, children_alignment, offset);
+    return m_impl->make_container_rail(direction, children_spacing, children_alignment, offset);
 }
 
 class PlatformImpl {
