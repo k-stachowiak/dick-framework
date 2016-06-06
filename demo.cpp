@@ -44,9 +44,9 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
     {
         m_menu_rail = m_gui.make_container_rail(
                 dick::GUI::Direction::LEFT,
-                0,
+                4,
                 dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT,
-                { SCREEN_W, 0 });
+                { SCREEN_W - 3, 3 });
         m_menu_rail->insert(m_gui.make_button(
                     m_gui.make_label("Exit"),
                     [this](){ t_transition_required = true; }));
@@ -58,7 +58,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                     [this](){ m_red = 0.5; m_green = 0.667; m_blue = 0.333; }));
         m_menu_rail->insert(m_gui.make_button(
                     m_gui.make_label("Red"),
-                    [this](){ m_red = 0.667; m_green = 0.5; m_blue = 0.333; }));
+                    [this](){ m_red = 0.667; m_green = 0.333; m_blue = 0.125; }));
     }
 
     void on_key(dick::Key key, bool down) override

@@ -360,6 +360,7 @@ DimScreen GUI::Widget::align(DimScreen origin, const DimScreen& size, int alignm
 
 struct WidgetLabel : public GUI::Widget {
 
+    void *m_font;
     DimScreen m_size;
     std::string m_text;
 
@@ -368,33 +369,30 @@ struct WidgetLabel : public GUI::Widget {
                 const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
                 const std::shared_ptr<InputState>& input_state,
                 const std::string &text,
+                void *font,
                 const DimScreen& offset) :
             Widget { color_scheme, layout_scheme, input_state, offset },
+            m_font { font },
             m_size {
                 static_cast<double>(
                     al_get_text_width(
-                        static_cast<ALLEGRO_FONT*>(
-                            layout_scheme->default_font
-                        ),
+                        static_cast<ALLEGRO_FONT*>(m_font),
                         text.c_str()
                     )
                 ),
                 static_cast<double>(
                     al_get_font_line_height(
-                        static_cast<ALLEGRO_FONT*>(
-                            layout_scheme->default_font
-                        )
+                        static_cast<ALLEGRO_FONT*>(m_font)
                     )
                 )
             },
             m_text { text }
-        {
-        }
+        {}
 
         void draw() override
         {
             al_draw_textf(
-                static_cast<ALLEGRO_FONT*>(t_layout_scheme->default_font),
+                static_cast<ALLEGRO_FONT*>(m_font),
                 dick_to_platform_color(t_color_scheme->text_regular),
                 t_offset.x,
                 t_offset.y,
@@ -730,14 +728,11 @@ struct GUIImpl {
         },
         m_layout_scheme {
             new GUI::LayoutScheme {
-                m_default_font,
                 2.0,
                 { 7.0, 5.0 }
             }
         },
-        m_input_state {
-            input_state
-        }
+        m_input_state { input_state }
     {
     }
 
@@ -751,6 +746,25 @@ struct GUIImpl {
                 m_layout_scheme,
                 m_input_state,
                 text,
+                m_default_font,
+                offset
+            }
+        };
+        return result;
+    }
+
+    std::unique_ptr<GUI::Widget> make_label_ex(
+            const std::string& text,
+            void *font,
+            const DimScreen& offset = { 0, 0 })
+    {
+        std::unique_ptr<GUI::Widget> result {
+            new WidgetLabel {
+                m_color_scheme,
+                m_layout_scheme,
+                m_input_state,
+                text,
+                font,
                 offset
             }
         };
@@ -848,6 +862,14 @@ std::unique_ptr<GUI::Widget> GUI::make_label(
         const DimScreen& offset)
 {
     return m_impl->make_label(text, offset);
+}
+
+std::unique_ptr<GUI::Widget> GUI::make_label_ex(
+        const std::string& text,
+        void *font,
+        const DimScreen& offset)
+{
+    return m_impl->make_label_ex(text, font, offset);
 }
 
 std::unique_ptr<GUI::Widget> GUI::make_button(

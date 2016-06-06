@@ -299,7 +299,6 @@ struct GUI {
 
     // Constants that define the common GUI scheme that aren't colors.
     struct LayoutScheme {
-        void *default_font;
         double border_width;
         DimScreen button_padding;
     };
@@ -373,6 +372,11 @@ struct GUI {
 
     std::unique_ptr<Widget> make_label(
             const std::string& text,
+            const DimScreen& offset = { 0, 0 });
+
+    std::unique_ptr<Widget> make_label_ex(
+            const std::string& text,
+            void *font,
             const DimScreen& offset = { 0, 0 });
 
     std::unique_ptr<Widget> make_button(
