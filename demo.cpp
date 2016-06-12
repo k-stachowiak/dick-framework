@@ -121,7 +121,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_status_rail->insert(m_gui.make_label(cursor_string));
     }
 
-    void draw(double weight) override
+    void draw(double) override
     {
         al_clear_to_color(al_map_rgb_f(m_red, m_green, m_blue));
 
