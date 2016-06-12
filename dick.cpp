@@ -511,26 +511,31 @@ struct WidgetContainerFree : public GUI::WidgetContainer {
     void on_click(Button button) override
     {
         for (const auto& child : m_children) {
-            child->on_click(button);
+            if (child) {
+                child->on_click(button);
+            }
         }
     }
 
     void draw() override
     {
         for (const auto& child : m_children) {
-            child->draw();
+            if (child) {
+                child->draw();
+            }
         }
     }
 
     void set_offset(const DimScreen& offset) override
     {
-        double dx = offset.x;
-        double dy = offset.y;
+        const DimScreen& old_offset = get_offset();
+        double dx = offset.x - old_offset.x;
+        double dy = offset.y - old_offset.y;
         for (const auto& child : m_children) {
-            const DimScreen& child_offset = child->get_offset();
-            child->set_offset({
-                child_offset.x + dx,
-                child_offset.y + dy });
+            if (child) {
+                const DimScreen& child_offset = child->get_offset();
+                child->set_offset({ child_offset.x + dx, child_offset.y + dy });
+            }
         }
     }
 
@@ -539,12 +544,8 @@ struct WidgetContainerFree : public GUI::WidgetContainer {
         return true;
     }
 
-    void insert(std::unique_ptr<Widget> widget) override
+    void insert(std::unique_ptr<Widget> widget, int) override
     {
-        const DimScreen& current_offset = widget->get_offset();
-        widget->set_offset({
-            current_offset.x + t_offset.x,
-            current_offset.y + t_offset.y });
         m_children.push_back(std::move(widget));
     }
 
@@ -584,31 +585,27 @@ struct WidgetContainerFree : public GUI::WidgetContainer {
 
 struct WidgetContainerRail : public GUI::WidgetContainer {
 
+    DimScreen m_size;
+    DimScreen m_current_offset;
     GUI::Direction::Enum m_direction;
     double m_children_spacing;
-    int m_children_alignment;
     std::vector<std::unique_ptr<Widget>> m_children;
 
-    void m_arrange_children()
+    void m_advance_offset(const DimScreen& size)
     {
-        DimScreen current_offset = t_offset;
-        for (const std::unique_ptr<Widget>& child : m_children) {
-            const DimScreen& child_size = child->get_size();
-            child->set_offset(align(current_offset, child_size, m_children_alignment));
-            switch (m_direction) {
-            case GUI::Direction::UP:
-                current_offset.y -= child_size.y + m_children_spacing;
-                break;
-            case GUI::Direction::RIGHT:
-                current_offset.x += child_size.x + m_children_spacing;
-                break;
-            case GUI::Direction::DOWN:
-                current_offset.y += child_size.y + m_children_spacing;
-                break;
-            case GUI::Direction::LEFT:
-                current_offset.x -= child_size.x + m_children_spacing;
-                break;
-            }
+        switch (m_direction) {
+        case GUI::Direction::UP:
+            m_current_offset.y -= size.y + m_children_spacing;
+            break;
+        case GUI::Direction::RIGHT:
+            m_current_offset.x += size.x + m_children_spacing;
+            break;
+        case GUI::Direction::DOWN:
+            m_current_offset.y += size.y + m_children_spacing;
+            break;
+        case GUI::Direction::LEFT:
+            m_current_offset.x -= size.x + m_children_spacing;
+            break;
         }
     }
 
@@ -618,38 +615,48 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
             const std::shared_ptr<InputState>& input_state,
             GUI::Direction::Enum direction,
             double children_spacing,
-            int children_alignment,
             const DimScreen& offset) :
         WidgetContainer { color_scheme, layout_scheme, input_state, offset },
+        m_size { 0, 0 },
+        m_current_offset(offset),
         m_direction { direction },
-        m_children_spacing { children_spacing },
-        m_children_alignment { children_alignment }
+        m_children_spacing { children_spacing }
     {
     }
 
     void on_click(Button button) override
     {
         for (const auto& child : m_children) {
-            child->on_click(button);
+            if (child) {
+                child->on_click(button);
+            }
         }
     }
 
     void draw() override
     {
         for (const auto& child : m_children) {
-            child->draw();
+            if (child) {
+                child->draw();
+            }
         }
+    }
+
+    DimScreen get_size() const override
+    {
+        return m_size;
     }
 
     void set_offset(const DimScreen& offset) override
     {
-        double dx = offset.x;
-        double dy = offset.y;
+        const DimScreen& old_offset = get_offset();
+        double dx = offset.x - old_offset.x;
+        double dy = offset.y - old_offset.y;
         for (const auto& child : m_children) {
-            const DimScreen& child_offset = child->get_offset();
-            child->set_offset({
-                child_offset.x + dx,
-                child_offset.y + dy });
+            if (child) {
+                const DimScreen& child_offset = child->get_offset();
+                child->set_offset({ child_offset.x + dx, child_offset.y + dy });
+            }
         }
     }
 
@@ -658,10 +665,14 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
         return true;
     }
 
-    void insert(std::unique_ptr<Widget> widget) override
+    void insert(std::unique_ptr<Widget> widget, int alignment) override
     {
+        const DimScreen& size = widget->get_size();
+        widget->set_offset(align(m_current_offset, size, alignment));
         m_children.push_back(std::move(widget));
-        m_arrange_children();
+        m_advance_offset(size);
+        m_size.x += size.x + m_children_spacing;
+        m_size.y += size.y + m_children_spacing;
     }
 
     void remove(Widget* widget) override
@@ -675,8 +686,12 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
                 });
 
         if (it != end(m_children)) {
+            if (it == begin(m_children) || it == (end(m_children) - 1)) {
+                const DimScreen& size = (*it)->get_size();
+                m_size.x -= size.x + m_children_spacing;
+                m_size.y -= size.y + m_children_spacing;
+            }
             m_children.erase(it);
-            m_arrange_children();
         }
     }
 
@@ -696,6 +711,7 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
     void clear() override
     {
         m_children.clear();
+        m_current_offset = t_offset;
     }
 };
 
@@ -827,7 +843,6 @@ struct GUIImpl {
     std::unique_ptr<GUI::WidgetContainer> make_container_rail(
             GUI::Direction::Enum direction,
             double children_spacing,
-            int children_alignment,
             const DimScreen& offset)
     {
         std::unique_ptr<GUI::WidgetContainer> result {
@@ -837,7 +852,6 @@ struct GUIImpl {
                 m_input_state,
                 direction,
                 children_spacing,
-                children_alignment,
                 offset
             }
         };
@@ -898,10 +912,9 @@ std::unique_ptr<GUI::WidgetContainer> GUI::make_container_free(
 std::unique_ptr<GUI::WidgetContainer> GUI::make_container_rail(
         Direction::Enum direction,
         double children_spacing,
-        int children_alignment,
         const DimScreen& offset)
 {
-    return m_impl->make_container_rail(direction, children_spacing, children_alignment, offset);
+    return m_impl->make_container_rail(direction, children_spacing, offset);
 }
 
 class PlatformImpl {
@@ -1180,3 +1193,4 @@ Platform::~Platform() { delete m_impl; }
 void Platform::real_time_loop(PlatformClient &client) { m_impl->real_time_loop(client); }
 
 }
+

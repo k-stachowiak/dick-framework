@@ -359,7 +359,7 @@ struct GUI {
                 const DimScreen& offset) :
             Widget { color_scheme, layout_scheme, input_state, offset }
         {}
-        virtual void insert(std::unique_ptr<Widget> widget) = 0;
+        virtual void insert(std::unique_ptr<Widget> widget, int alignment = 0) = 0;
         virtual void remove(Widget* widget) = 0;
         virtual bool contains(Widget* widget) = 0;
         virtual void clear() = 0;
@@ -396,7 +396,6 @@ struct GUI {
     std::unique_ptr<WidgetContainer> make_container_rail(
             Direction::Enum direction,
             double children_spacing,
-            int children_alignment,
             const DimScreen& offset = { 0, 0 });
 };
 

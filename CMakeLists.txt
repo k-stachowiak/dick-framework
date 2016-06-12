@@ -17,8 +17,8 @@ add_executable(demo demo.cpp)
 target_link_libraries(demo dick)
 
 add_custom_target(distr
+    COMMAND rm -rf distr
     COMMAND mkdir distr
-    COMMAND rm -rf distr/*
     COMMAND cp ../dick.h distr
     COMMAND cp libdick.a distr
     DEPENDS dick)

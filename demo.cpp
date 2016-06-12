@@ -45,7 +45,6 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_menu_rail = m_gui.make_container_rail(
                 dick::GUI::Direction::LEFT,
                 4,
-                dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT,
                 { SCREEN_W - 3, 3 });
         m_menu_rail->insert(m_gui.make_button(
                     m_gui.make_label("Exit"),
@@ -116,7 +115,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
             cursor_string = ss.str();
         }
 
-        m_status_rail = m_gui.make_container_rail(dick::GUI::Direction::DOWN, 10, 0, { 5, 5 });
+        m_status_rail = m_gui.make_container_rail(dick::GUI::Direction::DOWN, 10, { 5, 5 });
         m_status_rail->insert(m_gui.make_label(key_string));
         m_status_rail->insert(m_gui.make_label(button_string));
         m_status_rail->insert(m_gui.make_label(cursor_string));
