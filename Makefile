@@ -21,13 +21,17 @@ libdick.so: dick.o
 	$(CXX) -shared -o $@ $^ -lm -lallegro_monolith
 
 libdick.a: dick.o
-	ar -rvs $@ $^
+	ar cr $@ $^
+	ranlib $@
 
 dick.o: dick.cpp dick.h
 	$(CXX) $(CXXFLAGS) -o $@ -c -fPIC dick.cpp
 
-demo: dick.o demo.cpp dick.h
-	$(CXX) $(CXXFLAGS) -o $@ dick.cpp demo.cpp -lm -lallegro_monolith
+demo.o: demo.cpp dick.h
+	$(CXX) $(CXXFLAGS) -o $@ -c demo.cpp
+
+demo: libdick.a demo.o
+	$(CXX) $(CXXFLAGS) demo.o -o $@ -rdynamic libdick.a -lm -lallegro_monolith
 
 .PHONY: clean
 
