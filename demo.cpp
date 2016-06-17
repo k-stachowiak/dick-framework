@@ -29,6 +29,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
     dick::GUI m_gui;
     std::unique_ptr<dick::GUI::WidgetContainer> m_status_rail;
     std::unique_ptr<dick::GUI::WidgetContainer> m_menu_rail;
+    std::unique_ptr<dick::GUI::Widget> m_yes_no;
     ALLEGRO_BITMAP *m_bitmap;
 
     DemoState(dick::Resources *global_resources) :
@@ -58,6 +59,13 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_menu_rail->insert(m_gui.make_button(
                     m_gui.make_label("Red"),
                     [this](){ m_red = 0.667; m_green = 0.333; m_blue = 0.125; }));
+        m_yes_no = m_gui.make_dialog_yes_no(
+            "Quit?",
+            [this](){ t_transition_required = true; },
+            [](){},
+            { SCREEN_W / 2, SCREEN_H / 2 }
+        );
+        m_menu_rail->insert(std::move(m_yes_no));
     }
 
     void on_key(dick::Key key, bool down) override
@@ -83,6 +91,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 m_status_rail->on_click(button);
             }
             m_menu_rail->on_click(button);
+            //m_yes_no->on_click(button);
         }
     }
 
@@ -129,6 +138,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
             m_status_rail->draw();
         }
         m_menu_rail->draw();
+        //m_yes_no->draw();
 
         al_draw_scaled_rotated_bitmap(
                 m_bitmap,

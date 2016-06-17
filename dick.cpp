@@ -745,7 +745,8 @@ struct GUIImpl {
         m_layout_scheme {
             new GUI::LayoutScheme {
                 2.0,
-                { 7.0, 5.0 }
+                { 7.0, 5.0 },
+                { 30.0, 30.0 }
             }
         },
         m_input_state { input_state }
@@ -826,6 +827,37 @@ struct GUIImpl {
         return result;
     }
 
+    std::unique_ptr<GUI::Widget> make_dialog_yes_no(
+            const std::string& question,
+            GUI::Callback on_yes,
+            GUI::Callback on_no,
+            const DimScreen& offset)
+    {
+        auto yes_no_rail = make_container_rail(
+                GUI::Direction::RIGHT,
+                m_layout_scheme->dialog_spacing.x,
+                { 0, 0 });
+
+        yes_no_rail->insert(make_button(make_label("Yes", { 0, 0 }), on_yes, { 0, 0 }));
+        yes_no_rail->insert(make_button(make_label("No", { 0, 0 }), on_no, { 0, 0 }));
+
+        auto central_rail = make_container_rail(
+                GUI::Direction::DOWN,
+                m_layout_scheme->dialog_spacing.y,
+                offset);
+
+        central_rail->insert(
+                make_label(question, { 0, 0 }),
+                GUI::Alignment::MIDDLE | GUI::Alignment::CENTER);
+
+        central_rail->insert(
+                std::move(yes_no_rail),
+                GUI::Alignment::MIDDLE | GUI::Alignment::CENTER);
+
+        std::unique_ptr<GUI::Widget> result = std::move(central_rail);
+        return result;
+    }
+
     std::unique_ptr<GUI::WidgetContainer> make_container_free(
             const DimScreen& offset)
     {
@@ -901,6 +933,15 @@ std::unique_ptr<GUI::Widget> GUI::make_button_sized(
         const DimScreen& offset)
 {
     return m_impl->make_button_sized(std::move(sub_widget), callback, size, offset);
+}
+
+std::unique_ptr<GUI::Widget> GUI::make_dialog_yes_no(
+        const std::string& question,
+        Callback on_yes,
+        Callback on_no,
+        const DimScreen& offset)
+{
+    return m_impl->make_dialog_yes_no(question, on_yes, on_no, offset);
 }
 
 std::unique_ptr<GUI::WidgetContainer> GUI::make_container_free(

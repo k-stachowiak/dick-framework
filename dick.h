@@ -254,6 +254,7 @@ struct GUIImpl;
 // type erased GUI elements factory, storing some common configuration shared
 // between all the widget types that is silently passed to the concrete
 // widget constructors maintaining clear API on the surface.
+
 struct GUI {
 
     // This is a type of the most generic callback possible. Using the capturing
@@ -301,6 +302,7 @@ struct GUI {
     struct LayoutScheme {
         double border_width;
         DimScreen button_padding;
+        DimScreen dialog_spacing;
     };
 
     struct Widget {
@@ -359,7 +361,7 @@ struct GUI {
                 const DimScreen& offset) :
             Widget { color_scheme, layout_scheme, input_state, offset }
         {}
-        virtual void insert(std::unique_ptr<Widget> widget, int alignment = 0) = 0;
+        virtual void insert(std::unique_ptr<Widget> widget, int alignment = Alignment::TOP | Alignment::LEFT) = 0;
         virtual void remove(Widget* widget) = 0;
         virtual bool contains(Widget* widget) = 0;
         virtual void clear() = 0;
@@ -388,6 +390,12 @@ struct GUI {
             std::unique_ptr<Widget> sub_widget,
             Callback callback,
             const DimScreen& size,
+            const DimScreen& offset = { 0, 0 });
+
+    std::unique_ptr<Widget> make_dialog_yes_no(
+            const std::string& question,
+            Callback on_yes,
+            Callback on_no,
             const DimScreen& offset = { 0, 0 });
 
     std::unique_ptr<WidgetContainer> make_container_free(
