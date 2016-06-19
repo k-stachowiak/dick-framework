@@ -56,7 +56,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 75,
                 { SCREEN_W - 3, 3 });
         m_menu_rail->insert(m_gui.make_button(
-                    m_gui.make_label("Exit"),
+                    m_gui.make_image(m_resources.get_image("x.png")),
                     [this](){ t_transition_required = true; }),
                     dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT);
         m_menu_rail->insert(m_gui.make_button(

@@ -393,6 +393,43 @@ DimScreen GUI::Widget::align(DimScreen origin, const DimScreen& size, int alignm
     return origin;
 }
 
+struct WidgetImage : public GUI::Widget {
+
+    void *m_image;
+    DimScreen m_size;
+
+    WidgetImage(void *default_font,
+                const std::shared_ptr<GUI::ColorScheme>& color_scheme,
+                const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
+                const std::shared_ptr<InputState>& input_state,
+                void *image,
+                const DimScreen& offset) :
+        Widget { default_font, color_scheme, layout_scheme, input_state, offset },
+        m_image { image },
+        m_size {
+            static_cast<double>(al_get_bitmap_width(static_cast<ALLEGRO_BITMAP*>(image))),
+            static_cast<double>(al_get_bitmap_height(static_cast<ALLEGRO_BITMAP*>(image))),
+        }
+    {}
+
+    void draw() override
+    {
+        al_draw_bitmap(static_cast<ALLEGRO_BITMAP*>(m_image), t_offset.x, t_offset.y, 0);
+        WIDGET_DRAW_DEBUG();
+    }
+
+    DimScreen get_size() const override
+    {
+        return m_size;
+    }
+
+    const std::string &get_type_name() const override
+    {
+        static std::string name = "image";
+        return name;
+    }
+};
+
 struct WidgetLabel : public GUI::Widget {
 
     void *m_font;
@@ -833,6 +870,23 @@ struct GUIImpl {
     {
     }
 
+    std::unique_ptr<GUI::Widget> make_image(
+            void *image,
+            const DimScreen& offset)
+    {
+        std::unique_ptr<GUI::Widget> result {
+            new WidgetImage {
+                m_default_font,
+                m_color_scheme,
+                m_layout_scheme,
+                m_input_state,
+                image,
+                offset
+            }
+        };
+        return result;
+    }
+
     std::unique_ptr<GUI::Widget> make_label(
             const std::string& text,
             const DimScreen& offset)
@@ -844,7 +898,7 @@ struct GUIImpl {
                 m_layout_scheme,
                 m_input_state,
                 text,
-                m_default_font,
+                nullptr,
                 offset
             }
         };
@@ -956,6 +1010,13 @@ GUI::GUI(
 GUI::~GUI()
 {
     delete m_impl;
+}
+
+std::unique_ptr<GUI::Widget> GUI::make_image(
+        void *image,
+        const DimScreen& offset)
+{
+    return m_impl->make_image(image, offset);
 }
 
 std::unique_ptr<GUI::Widget> GUI::make_label(

@@ -433,6 +433,10 @@ struct GUI {
     GUI(const std::shared_ptr<InputState>& input_state, Resources& resources);
     ~GUI();
 
+    std::unique_ptr<Widget> make_image(
+            void *image,
+            const DimScreen& offset = { 0, 0 });
+
     std::unique_ptr<Widget> make_label(
             const std::string& text,
             const DimScreen& offset = { 0, 0 });
