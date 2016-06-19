@@ -43,29 +43,35 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_gui { m_input_state, m_resources },
         m_bitmap { static_cast<ALLEGRO_BITMAP*>(m_resources.get_image(IMAGE_NAME)) }
     {
-        m_menu_rail = m_gui.make_container_rail(
-                dick::GUI::Direction::LEFT,
-                4,
-                { SCREEN_W - 3, 3 });
-        m_menu_rail->insert(m_gui.make_button(
-                    m_gui.make_label("Exit"),
-                    [this](){ t_transition_required = true; }));
-        m_menu_rail->insert(m_gui.make_button(
-                    m_gui.make_label("Blue"),
-                    [this](){ m_red = 0.333; m_green = 0.5; m_blue = 0.667; }));
-        m_menu_rail->insert(m_gui.make_button(
-                    m_gui.make_label("Green"),
-                    [this](){ m_red = 0.5; m_green = 0.667; m_blue = 0.333; }));
-        m_menu_rail->insert(m_gui.make_button(
-                    m_gui.make_label("Red"),
-                    [this](){ m_red = 0.667; m_green = 0.333; m_blue = 0.125; }));
         m_yes_no = m_gui.make_dialog_yes_no(
             "Quit?",
             [this](){ t_transition_required = true; },
             [](){},
-            { SCREEN_W / 2, SCREEN_H / 2 }
+            { SCREEN_W / 2, 2 * SCREEN_H / 3 }
         );
-        m_menu_rail->insert(std::move(m_yes_no));
+        m_yes_no->set_instance_name("yes-no-dialog");
+
+        m_menu_rail = m_gui.make_container_rail(
+                dick::GUI::Direction::LEFT,
+                75,
+                { SCREEN_W - 3, 3 });
+        m_menu_rail->insert(m_gui.make_button(
+                    m_gui.make_label("Exit"),
+                    [this](){ t_transition_required = true; }),
+                    dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT);
+        m_menu_rail->insert(m_gui.make_button(
+                    m_gui.make_label("Blue"),
+                    [this](){ m_red = 0.333; m_green = 0.5; m_blue = 0.667; }),
+                    dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT);
+        m_menu_rail->insert(m_gui.make_button(
+                    m_gui.make_label("Green"),
+                    [this](){ m_red = 0.5; m_green = 0.667; m_blue = 0.333; }),
+                    dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT);
+        m_menu_rail->insert(m_gui.make_button(
+                    m_gui.make_label("Red"),
+                    [this](){ m_red = 0.667; m_green = 0.333; m_blue = 0.125; }),
+                    dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT);
+        m_menu_rail->set_instance_name("menu-rail");
     }
 
     void on_key(dick::Key key, bool down) override
@@ -91,7 +97,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 m_status_rail->on_click(button);
             }
             m_menu_rail->on_click(button);
-            //m_yes_no->on_click(button);
+            m_yes_no->on_click(button);
         }
     }
 
@@ -124,10 +130,11 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
             cursor_string = ss.str();
         }
 
-        m_status_rail = m_gui.make_container_rail(dick::GUI::Direction::DOWN, 10, { 5, 5 });
+        m_status_rail = m_gui.make_container_rail(dick::GUI::Direction::DOWN, 20, { 5, 5 });
         m_status_rail->insert(m_gui.make_label(key_string));
         m_status_rail->insert(m_gui.make_label(button_string));
         m_status_rail->insert(m_gui.make_label(cursor_string));
+        m_status_rail->set_instance_name("status-rail");
     }
 
     void draw(double) override
@@ -138,7 +145,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
             m_status_rail->draw();
         }
         m_menu_rail->draw();
-        //m_yes_no->draw();
+        m_yes_no->draw();
 
         al_draw_scaled_rotated_bitmap(
                 m_bitmap,
