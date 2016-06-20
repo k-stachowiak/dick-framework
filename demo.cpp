@@ -24,6 +24,8 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
 
     double m_red, m_green, m_blue;
 
+    bool m_ask_to_quit;
+
     dick::Resources m_resources;
     std::shared_ptr<dick::InputState> m_input_state;
     dick::GUI m_gui;
@@ -38,6 +40,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_cursor { -1.0, -1.0 },
         m_rotation { 0.0 },
         m_red { 0.5 }, m_green { 0.5 }, m_blue { 0.5 },
+        m_ask_to_quit { false },
         m_resources { global_resources },
         m_input_state { new dick::InputState },
         m_gui { m_input_state, m_resources },
@@ -46,7 +49,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_yes_no = m_gui.make_dialog_yes_no(
             "Quit?",
             [this](){ t_transition_required = true; },
-            [](){},
+            [this](){ m_ask_to_quit = false; },
             { SCREEN_W / 2, 2 * SCREEN_H / 3 });
         m_yes_no->set_instance_name("yes-no-dialog");
 
@@ -56,7 +59,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 { SCREEN_W - 3, 3 });
         m_menu_rail->insert(m_gui.make_button(
                     m_gui.make_image(m_resources.get_image("x.png")),
-                    [this](){ t_transition_required = true; }),
+                    [this](){ m_ask_to_quit = true; }),
                     dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT);
         m_menu_rail->insert(m_gui.make_button(
                     m_gui.make_label("Blue"),
@@ -96,7 +99,9 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 m_status_rail->on_click(button);
             }
             m_menu_rail->on_click(button);
-            m_yes_no->on_click(button);
+            if (m_ask_to_quit) {
+                m_yes_no->on_click(button);
+            }
         }
     }
 
@@ -153,7 +158,10 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
             m_status_rail->on_draw();
         }
         m_menu_rail->on_draw();
-        m_yes_no->on_draw();
+
+        if (m_ask_to_quit) {
+            m_yes_no->on_draw();
+        }
     }
 
     std::shared_ptr<StateNode> next_state() override
