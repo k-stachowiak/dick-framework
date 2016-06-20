@@ -11,3 +11,5 @@ build
 *.o
 demo
 distr
+*.py
+*.pyc

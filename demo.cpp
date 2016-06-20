@@ -47,8 +47,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
             "Quit?",
             [this](){ t_transition_required = true; },
             [](){},
-            { SCREEN_W / 2, 2 * SCREEN_H / 3 }
-        );
+            { SCREEN_W / 2, 2 * SCREEN_H / 3 });
         m_yes_no->set_instance_name("yes-no-dialog");
 
         m_menu_rail = m_gui.make_container_rail(
@@ -141,12 +140,6 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
     {
         al_clear_to_color(al_map_rgb_f(m_red, m_green, m_blue));
 
-        if (m_status_rail) {
-            m_status_rail->draw();
-        }
-        m_menu_rail->draw();
-        m_yes_no->draw();
-
         al_draw_scaled_rotated_bitmap(
                 m_bitmap,
                 al_get_bitmap_width(m_bitmap) / 2,
@@ -155,6 +148,12 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 1.0, 1.0,
                 m_rotation,
                 0);
+
+        if (m_status_rail) {
+            m_status_rail->on_draw();
+        }
+        m_menu_rail->on_draw();
+        m_yes_no->on_draw();
     }
 
     std::shared_ptr<StateNode> next_state() override

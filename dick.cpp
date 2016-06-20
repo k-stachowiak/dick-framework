@@ -245,7 +245,7 @@ class StateMachineImpl {
     {
         if (m_current_state->transition_required()) {
             LOG_DEBUG("Client requested state change");
-            m_current_state = std::move(m_current_state->next_state());
+            m_current_state = m_current_state->next_state();
             return true;
         } else {
             return false;
@@ -319,48 +319,85 @@ void StateMachine::on_cursor(DimScreen position) { m_impl->on_cursor(position); 
 void StateMachine::tick(double dt) { m_impl->tick(dt); }
 void StateMachine::draw(double weight) { m_impl->draw(weight); }
 
-#if DICK_GUI_DEBUG == 1
-#define WIDGET_DRAW_DEBUG() \
-    do { \
-        DimScreen top_left, bottom_right; \
-        std::tie(top_left, bottom_right) = get_rect(); \
-        al_draw_circle(t_offset.x, t_offset.y, 3, al_map_rgb_f(0, 1, 1), 1); \
-        al_draw_rectangle( \
-                top_left.x, top_left.y,  \
-                bottom_right.x, bottom_right.y,  \
-                al_map_rgb_f(1, 0, 1), \
-                1); \
-    } while(0)
-#elif DICK_GUI_DEBUG == 2
-#define WIDGET_DRAW_DEBUG() \
-    do { \
-        DimScreen top_left, bottom_right; \
-        std::tie(top_left, bottom_right) = get_rect(); \
-        al_draw_circle(t_offset.x, t_offset.y, 3, al_map_rgb_f(0, 1, 1), 1); \
-        al_draw_rectangle( \
-                top_left.x, top_left.y,  \
-                bottom_right.x, bottom_right.y,  \
-                al_map_rgb_f(1, 0, 1), \
-                1); \
-        al_draw_textf( \
-            static_cast<ALLEGRO_FONT*>(t_default_font), \
-            al_map_rgb_f(1, 1, 0), \
-            t_offset.x, t_offset.y, \
-            0, \
-            "%s::%s", \
-            get_type_name().c_str(), get_instance_name().c_str()); \
-    } while(0)
-#else
-#define WIDGET_DRAW_DEBUG()
-#endif
+void GUI::Widget::debug_draw() const
+{
+    DimScreen top_left, bottom_right;
+    std::tie(top_left, bottom_right) = get_rect();
+    al_draw_circle(t_offset.x, t_offset.y, 3, al_map_rgb_f(0, 1, 1), 1);
+    al_draw_rectangle(
+            top_left.x, top_left.y,
+            bottom_right.x, bottom_right.y,
+            al_map_rgb_f(1, 0, 1),
+            1);
+#   if DICK_GUI_DEBUG > 1
+    if (point_in(t_input_state->cursor)) {
+        al_draw_textf(
+            static_cast<ALLEGRO_FONT*>(t_default_font),
+            al_map_rgb_f(1, 1, 0),
+            t_offset.x, t_offset.y,
+            0,
+            "%s::%s",
+            get_type_name().c_str(), get_instance_name().c_str());
+    }
+#   endif
+
+    const WidgetContainer *as_container = dynamic_cast<const WidgetContainer*>(this);
+    if (as_container) {
+        as_container->visit_children([](const Widget& child) { child.debug_draw(); });
+    }
+}
+
+void GUI::Widget::debug_print(int recursion_level) const
+{
+    std::string prefix(2 * recursion_level, ' ');
+
+    const DimScreen &size = get_size();
+    const DimScreen &offset = get_offset();
+
+    DimScreen top_left, bottom_right;
+    std::tie(top_left, bottom_right) = get_rect();
+
+    LOG_DEBUG("%s%s::%s o(%.1f, %.1f) s(%.1f, %.1f) r((%.1f, %.1f), (%.1f, %.1f))",
+            prefix.c_str(),
+            get_type_name().c_str(), get_instance_name().c_str(),
+            offset.x, offset.y, size.x, size.y,
+            top_left.x, top_left.y, bottom_right.x, bottom_right.y);
+
+    const WidgetContainer *as_container = dynamic_cast<const WidgetContainer*>(this);
+    if (as_container) {
+        LOG_DEBUG("%sChildren:", prefix.c_str());
+        as_container->visit_children(
+            [recursion_level](const Widget& child)
+            {
+                child.debug_print(recursion_level + 1);
+            });
+    }
+}
+
+std::pair<DimScreen, DimScreen> GUI::Widget::get_rect() const
+{
+    const DimScreen& size = get_size();
+    DimScreen bottom_right { t_offset.x + size.x, t_offset.y + size.y };
+    return std::make_pair(t_offset, bottom_right);
+}
+
+DimScreen GUI::Widget::get_size() const
+{
+    DimScreen top_left, bottom_right;
+    std::tie(top_left, bottom_right) = get_rect();
+    return DimScreen { bottom_right.x - top_left.x, bottom_right.y - top_left.y };
+}
 
 bool GUI::Widget::point_in(const DimScreen &point) const
 {
-    const DimScreen &size = get_size();
-    const double x0 = t_offset.x;
-    const double y0 = t_offset.y;
-    const double x1 = x0 + size.x;
-    const double y1 = y0 + size.y;
+    DimScreen top_left, bottom_right;
+    std::tie(top_left, bottom_right) = get_rect();
+
+    double x0 = top_left.x;
+    double y0 = top_left.y;
+    double x1 = bottom_right.x;
+    double y1 = bottom_right.y;
+
     return point.x >= x0 && point.x <= x1 && point.y >= y0 && point.y <= y1;
 }
 
@@ -396,31 +433,29 @@ DimScreen GUI::Widget::align(DimScreen origin, const DimScreen& size, int alignm
 struct WidgetImage : public GUI::Widget {
 
     void *m_image;
-    DimScreen m_size;
 
     WidgetImage(void *default_font,
                 const std::shared_ptr<GUI::ColorScheme>& color_scheme,
                 const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
                 const std::shared_ptr<InputState>& input_state,
                 void *image,
-                const DimScreen& offset) :
-        Widget { default_font, color_scheme, layout_scheme, input_state, offset },
-        m_image { image },
-        m_size {
-            static_cast<double>(al_get_bitmap_width(static_cast<ALLEGRO_BITMAP*>(image))),
-            static_cast<double>(al_get_bitmap_height(static_cast<ALLEGRO_BITMAP*>(image))),
-        }
+                const DimScreen& offset,
+                const std::string& instance_name) :
+        Widget { default_font, color_scheme, layout_scheme, input_state, offset, instance_name },
+        m_image { image }
     {}
 
-    void draw() override
+    void on_draw() override
     {
         al_draw_bitmap(static_cast<ALLEGRO_BITMAP*>(m_image), t_offset.x, t_offset.y, 0);
-        WIDGET_DRAW_DEBUG();
     }
 
     DimScreen get_size() const override
     {
-        return m_size;
+        return DimScreen {
+            static_cast<double>(al_get_bitmap_width(static_cast<ALLEGRO_BITMAP*>(m_image))),
+            static_cast<double>(al_get_bitmap_height(static_cast<ALLEGRO_BITMAP*>(m_image))),
+        };
     }
 
     const std::string &get_type_name() const override
@@ -433,7 +468,6 @@ struct WidgetImage : public GUI::Widget {
 struct WidgetLabel : public GUI::Widget {
 
     void *m_font;
-    DimScreen m_size;
     std::string m_text;
 
     WidgetLabel(void *default_font,
@@ -442,26 +476,14 @@ struct WidgetLabel : public GUI::Widget {
                 const std::shared_ptr<InputState>& input_state,
                 const std::string &text,
                 void *font,
-                const DimScreen& offset) :
-        Widget { default_font, color_scheme, layout_scheme, input_state, offset },
+                const DimScreen& offset,
+                const std::string& instance_name) :
+        Widget { default_font, color_scheme, layout_scheme, input_state, offset, instance_name },
         m_font { font ? font : default_font },
-        m_size {
-            static_cast<double>(
-                al_get_text_width(
-                    static_cast<ALLEGRO_FONT*>(m_font),
-                    text.c_str()
-                )
-            ),
-            static_cast<double>(
-                al_get_font_line_height(
-                    static_cast<ALLEGRO_FONT*>(m_font)
-                )
-            )
-        },
         m_text { text }
     {}
 
-    void draw() override
+    void on_draw() override
     {
         al_draw_textf(
             static_cast<ALLEGRO_FONT*>(m_font),
@@ -471,12 +493,23 @@ struct WidgetLabel : public GUI::Widget {
             0,
             "%s",
             m_text.c_str());
-        WIDGET_DRAW_DEBUG();
     }
 
     DimScreen get_size() const override
     {
-        return m_size;
+        return DimScreen {
+            static_cast<double>(
+                al_get_text_width(
+                    static_cast<ALLEGRO_FONT*>(m_font),
+                    m_text.c_str()
+                )
+            ),
+            static_cast<double>(
+                al_get_font_line_height(
+                    static_cast<ALLEGRO_FONT*>(m_font)
+                )
+            )
+        };
     }
 
     const std::string &get_type_name() const override
@@ -488,7 +521,7 @@ struct WidgetLabel : public GUI::Widget {
 
 struct WidgetButton : public GUI::Widget {
 
-    DimScreen m_size;
+    DimScreen m_size; // Size is used every frame therefore we cache it
     std::unique_ptr<Widget> m_sub_widget;
     GUI::Callback m_callback;
 
@@ -500,11 +533,8 @@ struct WidgetButton : public GUI::Widget {
         const DimScreen& sub_size = m_sub_widget->get_size();
         m_sub_widget->set_offset(
             align(
-                middle,
-                sub_size,
-                GUI::Alignment::MIDDLE | GUI::Alignment::CENTER
-            )
-        );
+                middle, sub_size,
+                GUI::Alignment::MIDDLE | GUI::Alignment::CENTER));
     }
 
     WidgetButton(
@@ -515,16 +545,17 @@ struct WidgetButton : public GUI::Widget {
             std::unique_ptr<GUI::Widget> sub_widget,
             GUI::Callback callback,
             const DimScreen& size,
-            const DimScreen& offset) :
-        Widget { default_font, color_scheme, layout_scheme, input_state, offset },
+            const DimScreen& offset,
+            const std::string &instance_name) :
+        Widget { default_font, color_scheme, layout_scheme, input_state, offset, instance_name },
         m_size(size),
         m_sub_widget { std::move(sub_widget) },
         m_callback { callback }
     {
         if (size.x == 0 && size.y == 0) {
             const DimScreen& sub_size = m_sub_widget->get_size();
-            m_size.x = sub_size.x + 2 * layout_scheme->button_padding.x;
-            m_size.y = sub_size.y + 2 * layout_scheme->button_padding.y;
+            m_size.x = sub_size.x + 2 * layout_scheme->widget_padding.x;
+            m_size.y = sub_size.y + 2 * layout_scheme->widget_padding.y;
         }
         m_compute_sub_offset();
     }
@@ -536,12 +567,15 @@ struct WidgetButton : public GUI::Widget {
         }
     }
 
-    void draw() override
+    void on_draw() override
     {
-        double x0 = t_offset.x;
-        double y0 = t_offset.y;
-        double x1 = x0 + m_size.x;
-        double y1 = y0 + m_size.y;
+        DimScreen top_left, bottom_right;
+        std::tie(top_left, bottom_right) = get_rect();
+
+        double x0 = top_left.x;
+        double y0 = top_left.y;
+        double x1 = bottom_right.x;
+        double y1 = bottom_right.y;
 
         ALLEGRO_COLOR bg_color;
         ALLEGRO_COLOR border_color;
@@ -560,9 +594,7 @@ struct WidgetButton : public GUI::Widget {
         al_draw_filled_rectangle(x0, y0, x1, y1, bg_color);
         al_draw_rectangle(x0, y0, x1, y1, border_color, t_layout_scheme->border_width);
 
-        m_sub_widget->draw();
-
-        WIDGET_DRAW_DEBUG();
+        m_sub_widget->on_draw();
     }
 
     DimScreen get_size() const override
@@ -583,6 +615,87 @@ struct WidgetButton : public GUI::Widget {
     }
 };
 
+bool GUI::WidgetContainer::contains(Widget* widget)
+{
+    bool found = false;
+    visit_descendants([widget, &found](Widget& x) { if (!found && widget == &x) { found = true; } });
+    return found;
+}
+
+void GUI::WidgetContainer::on_click(Button button)
+{
+    visit_children([button](Widget& widget) { widget.on_click(button); });
+}
+
+void GUI::WidgetContainer::on_draw()
+{
+    visit_children([](Widget& widget) { widget.on_draw(); });
+}
+
+void GUI::WidgetContainer::set_offset(const DimScreen& offset)
+{
+    const DimScreen& old_offset = get_offset();
+    double dx = offset.x - old_offset.x;
+    double dy = offset.y - old_offset.y;
+    visit_children(
+        [&offset, dx, dy](Widget& widget)
+        {
+            const DimScreen& widget_offset = widget.get_offset();
+            widget.set_offset({ widget_offset.x + dx, widget_offset.y + dy });
+        });
+    t_offset = offset;
+}
+
+std::pair<DimScreen, DimScreen> GUI::WidgetContainer::get_rect() const
+{
+    double min_x = std::numeric_limits<double>::infinity();
+    double max_x = -std::numeric_limits<double>::infinity();
+    double min_y = std::numeric_limits<double>::infinity();
+    double max_y = -std::numeric_limits<double>::infinity();
+
+    visit_descendants(
+        [&min_x, &max_x, &min_y, &max_y](const Widget& widget)
+        {
+            DimScreen top_left, bottom_right;
+            std::tie(top_left, bottom_right) = widget.get_rect();
+            min_x = std::min(top_left.x, min_x);
+            min_y = std::min(top_left.y, min_y);
+            max_x = std::max(bottom_right.x, max_x);
+            max_y = std::max(bottom_right.y, max_y);
+        });
+
+    return std::make_pair(
+        DimScreen { min_x, min_y },
+        DimScreen { max_x, max_y }
+    );
+}
+
+void GUI::WidgetContainer::visit_descendants(std::function<void(Widget&)> callback)
+{
+    visit_children(
+        [callback](Widget& widget)
+        {
+            callback(widget);
+            WidgetContainer *child_as_container = dynamic_cast<WidgetContainer*>(&widget);
+            if (child_as_container) {
+                child_as_container->visit_descendants(callback);
+            }
+        });
+}
+
+void GUI::WidgetContainer::visit_descendants(std::function<void(const Widget&)> callback) const
+{
+    visit_children(
+        [callback](const Widget& widget)
+        {
+            callback(widget);
+            const WidgetContainer *child_as_container = dynamic_cast<const WidgetContainer*>(&widget);
+            if (child_as_container) {
+                child_as_container->visit_descendants(callback);
+            }
+        });
+}
+
 struct WidgetContainerFree : public GUI::WidgetContainer {
 
     std::vector<std::unique_ptr<Widget>> m_children;
@@ -592,42 +705,10 @@ struct WidgetContainerFree : public GUI::WidgetContainer {
             const std::shared_ptr<GUI::ColorScheme>& color_scheme,
             const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
             const std::shared_ptr<InputState>& input_state,
-            const DimScreen& offset) :
-        WidgetContainer { default_font, color_scheme, layout_scheme, input_state, offset }
+            const DimScreen& offset,
+            const std::string &instance_name) :
+        WidgetContainer { default_font, color_scheme, layout_scheme, input_state, offset, instance_name }
     {
-    }
-
-    void on_click(Button button) override
-    {
-        for (const auto& child : m_children) {
-            if (child) {
-                child->on_click(button);
-            }
-        }
-    }
-
-    void draw() override
-    {
-        for (const auto& child : m_children) {
-            if (child) {
-                child->draw();
-            }
-        }
-        WIDGET_DRAW_DEBUG();
-    }
-
-    void set_offset(const DimScreen& offset) override
-    {
-        const DimScreen& old_offset = get_offset();
-        double dx = offset.x - old_offset.x;
-        double dy = offset.y - old_offset.y;
-        for (const auto& child : m_children) {
-            if (child) {
-                const DimScreen& child_offset = child->get_offset();
-                child->set_offset({ child_offset.x + dx, child_offset.y + dy });
-            }
-        }
-        t_offset = offset;
     }
 
     bool point_in(const DimScreen&) const override
@@ -655,19 +736,6 @@ struct WidgetContainerFree : public GUI::WidgetContainer {
         }
     }
 
-    bool contains(Widget* widget) override
-    {
-        auto it = std::find_if(
-                begin(m_children),
-                end(m_children),
-                [widget](const std::unique_ptr<Widget>& child)
-                {
-                    return child.get() == widget;
-                });
-
-        return it != end(m_children);
-    }
-
     void clear() override
     {
         m_children.clear();
@@ -678,6 +746,20 @@ struct WidgetContainerFree : public GUI::WidgetContainer {
         return std::make_pair(t_offset, t_offset);
     }
 
+    void visit_children(std::function<void(Widget&)> callback) override
+    {
+        for (const std::unique_ptr<Widget>& widget : m_children) {
+            callback(*widget.get());
+        }
+    }
+
+    void visit_children(std::function<void(const Widget&)> callback) const override
+    {
+        for (const std::unique_ptr<Widget>& widget : m_children) {
+            callback(*widget.get());
+        }
+    }
+
     const std::string &get_type_name() const override
     {
         static std::string name = "container-free";
@@ -685,9 +767,118 @@ struct WidgetContainerFree : public GUI::WidgetContainer {
     }
 };
 
+struct WidgetContainerPanel : public GUI::WidgetContainer {
+
+    DimScreen m_size; // Cache as expensive to compute
+    std::vector<std::unique_ptr<Widget>> m_children;
+
+    void m_compute_size()
+    {
+        DimScreen top_left, bottom_right;
+        std::tie(top_left, bottom_right) = get_rect();
+        m_size = DimScreen { bottom_right.x - top_left.x, bottom_right.y - top_left.y };
+    }
+
+    WidgetContainerPanel (
+            void *default_font,
+            const std::shared_ptr<GUI::ColorScheme>& color_scheme,
+            const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
+            const std::shared_ptr<InputState>& input_state,
+            const DimScreen& offset,
+            const std::string& instance_name) :
+        WidgetContainer { default_font, color_scheme, layout_scheme, input_state, offset, instance_name },
+        m_size(layout_scheme->widget_padding)
+    {
+    }
+
+    void on_draw() override
+    {
+        DimScreen top_left, bottom_right;
+        std::tie(top_left, bottom_right) = get_rect();
+
+        double x0 = top_left.x;
+        double y0 = top_left.y;
+        double x1 = bottom_right.x;
+        double y1 = bottom_right.y;
+
+        ALLEGRO_COLOR bg_color = dick_to_platform_color(t_color_scheme->bg_regular);
+        ALLEGRO_COLOR border_color = dick_to_platform_color(t_color_scheme->border_regular);
+
+        al_draw_filled_rectangle(x0, y0, x1, y1, bg_color);
+        al_draw_rectangle(x0, y0, x1, y1, border_color, t_layout_scheme->border_width);
+
+        visit_children([](Widget& child) { child.on_draw(); });
+    }
+
+    void insert(std::unique_ptr<Widget> widget, int alignment) override
+    {
+        const DimScreen& size = widget->get_size();
+        widget->set_offset(align(t_offset, size, alignment));
+        m_children.push_back(std::move(widget));
+        m_compute_size();
+    }
+
+    void remove(Widget* widget) override
+    {
+        auto it = std::find_if(
+                begin(m_children),
+                end(m_children),
+                [widget](const std::unique_ptr<Widget>& child)
+                {
+                    return child.get() == widget;
+                });
+
+        if (it != end(m_children)) {
+            m_children.erase(it);
+            m_compute_size();
+        }
+    }
+
+    void clear() override
+    {
+        m_children.clear();
+    }
+
+    std::pair<DimScreen, DimScreen> get_rect() const override
+    {
+        DimScreen top_left, bottom_right;
+        std::tie(top_left, bottom_right) = WidgetContainer::get_rect();
+
+        return std::make_pair(
+            DimScreen {
+                top_left.x - t_layout_scheme->widget_padding.x,
+                top_left.y - t_layout_scheme->widget_padding.y
+            },
+            DimScreen {
+                bottom_right.x + t_layout_scheme->widget_padding.x,
+                bottom_right.y + t_layout_scheme->widget_padding.y
+            }
+        );
+    }
+
+    void visit_children(std::function<void(Widget&)> callback) override
+    {
+        for (const std::unique_ptr<Widget>& widget : m_children) {
+            callback(*widget.get());
+        }
+    }
+
+    void visit_children(std::function<void(const Widget&)> callback) const override
+    {
+        for (const std::unique_ptr<Widget>& widget : m_children) {
+            callback(*widget.get());
+        }
+    }
+
+    const std::string &get_type_name() const override
+    {
+        static std::string name = "container-panel";
+        return name;
+    }
+};
+
 struct WidgetContainerRail : public GUI::WidgetContainer {
 
-    DimScreen m_size;
     DimScreen m_current_offset;
     GUI::Direction::Enum m_direction;
     double m_stride;
@@ -711,13 +902,6 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
         }
     }
 
-    void m_compute_size()
-    {
-        DimScreen top_left, bottom_right;
-        std::tie(top_left, bottom_right) = get_rect();
-        m_size = DimScreen { bottom_right.x - top_left.x, bottom_right.y - top_left.y };
-    }
-
     WidgetContainerRail(
             void *default_font,
             const std::shared_ptr<GUI::ColorScheme>& color_scheme,
@@ -725,51 +909,13 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
             const std::shared_ptr<InputState>& input_state,
             GUI::Direction::Enum direction,
             double stride,
-            const DimScreen& offset) :
-        WidgetContainer { default_font, color_scheme, layout_scheme, input_state, offset },
-        m_size { 0, 0 },
+            const DimScreen& offset,
+            const std::string& instance_name) :
+        WidgetContainer { default_font, color_scheme, layout_scheme, input_state, offset, instance_name },
         m_current_offset(offset),
         m_direction { direction },
         m_stride { stride }
     {
-    }
-
-    void on_click(Button button) override
-    {
-        for (const auto& child : m_children) {
-            if (child) {
-                child->on_click(button);
-            }
-        }
-    }
-
-    void draw() override
-    {
-        for (const auto& child : m_children) {
-            if (child) {
-                child->draw();
-            }
-        }
-        WIDGET_DRAW_DEBUG();
-    }
-
-    DimScreen get_size() const override
-    {
-        return m_size;
-    }
-
-    void set_offset(const DimScreen& offset) override
-    {
-        const DimScreen& old_offset = get_offset();
-        double dx = offset.x - old_offset.x;
-        double dy = offset.y - old_offset.y;
-        for (const auto& child : m_children) {
-            if (child) {
-                const DimScreen& child_offset = child->get_offset();
-                child->set_offset({ child_offset.x + dx, child_offset.y + dy });
-            }
-        }
-        t_offset = offset;
     }
 
     bool point_in(const DimScreen&) const override
@@ -783,7 +929,6 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
         widget->set_offset(align(m_current_offset, size, alignment));
         m_children.push_back(std::move(widget));
         m_advance_offset();
-        m_compute_size();
     }
 
     void remove(Widget* widget) override
@@ -798,21 +943,7 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
 
         if (it != end(m_children)) {
             m_children.erase(it);
-            m_compute_size();
         }
-    }
-
-    bool contains(Widget* widget) override
-    {
-        auto it = std::find_if(
-                begin(m_children),
-                end(m_children),
-                [widget](const std::unique_ptr<Widget>& child)
-                {
-                    return child.get() == widget;
-                });
-
-        return it != end(m_children);
     }
 
     void clear() override
@@ -821,9 +952,18 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
         m_current_offset = t_offset;
     }
 
-    std::pair<DimScreen, DimScreen> get_rect() const override
+    void visit_children(std::function<void(Widget&)> callback) override
     {
-        return range_rect(m_children);
+        for (const std::unique_ptr<Widget>& widget : m_children) {
+            callback(*widget.get());
+        }
+    }
+
+    void visit_children(std::function<void(const Widget&)> callback) const override
+    {
+        for (const std::unique_ptr<Widget>& widget : m_children) {
+            callback(*widget.get());
+        }
     }
 
     const std::string &get_type_name() const override
@@ -839,6 +979,7 @@ struct GUIImpl {
     std::shared_ptr<GUI::ColorScheme> m_color_scheme;
     std::shared_ptr<GUI::LayoutScheme> m_layout_scheme;
     std::shared_ptr<InputState> m_input_state;
+    std::string m_default_instance_name;
 
     GUIImpl(
             const std::shared_ptr<InputState>& input_state,
@@ -861,12 +1002,13 @@ struct GUIImpl {
         },
         m_layout_scheme {
             new GUI::LayoutScheme {
-                2.0,
-                { 7.0, 5.0 },
-                { 7.0, 7.0 }
+                1.0,
+                { 10.0, 8.0 },
+                { 13.0, 10.0 }
             }
         },
-        m_input_state { input_state }
+        m_input_state { input_state },
+        m_default_instance_name { "unnamed" }
     {
     }
 
@@ -881,7 +1023,8 @@ struct GUIImpl {
                 m_layout_scheme,
                 m_input_state,
                 image,
-                offset
+                offset,
+                m_default_instance_name
             }
         };
         return result;
@@ -899,7 +1042,8 @@ struct GUIImpl {
                 m_input_state,
                 text,
                 nullptr,
-                offset
+                offset,
+                m_default_instance_name
             }
         };
         return result;
@@ -918,7 +1062,8 @@ struct GUIImpl {
                 m_input_state,
                 text,
                 font,
-                offset
+                offset,
+                m_default_instance_name
             }
         };
         return result;
@@ -938,7 +1083,8 @@ struct GUIImpl {
                 std::move(sub_widget),
                 callback,
                 { 0, 0 },
-                offset
+                offset,
+                m_default_instance_name
             }
         };
         return result;
@@ -959,7 +1105,8 @@ struct GUIImpl {
                 std::move(sub_widget),
                 callback,
                 size,
-                offset
+                offset,
+                m_default_instance_name
             }
         };
         return result;
@@ -974,7 +1121,24 @@ struct GUIImpl {
                 m_color_scheme,
                 m_layout_scheme,
                 m_input_state,
-                offset
+                offset,
+                m_default_instance_name
+            }
+        };
+        return result;
+    }
+
+    std::unique_ptr<GUI::WidgetContainer> make_container_panel(
+            const DimScreen& offset)
+    {
+        std::unique_ptr<GUI::WidgetContainer> result {
+            new WidgetContainerPanel {
+                m_default_font,
+                m_color_scheme,
+                m_layout_scheme,
+                m_input_state,
+                offset,
+                m_default_instance_name
             }
         };
         return result;
@@ -993,7 +1157,8 @@ struct GUIImpl {
                 m_input_state,
                 direction,
                 stride,
-                offset
+                offset,
+                m_default_instance_name
             }
         };
         return result;
@@ -1057,27 +1222,37 @@ std::unique_ptr<GUI::Widget> GUI::make_dialog_yes_no(
         Callback on_no,
         const DimScreen& offset)
 {
+
     auto yes_button = make_button(make_label("Yes"), on_yes);
+    yes_button->set_instance_name("btn-yes");
+
     auto no_button = make_button(make_label("No"), on_no);
+    no_button->set_instance_name("btn-no");
+
     auto question_label = make_label(question);
+    question_label->set_instance_name("lbl-question");
 
     double yes_no_stride = yes_button->get_size().x + m_impl->m_layout_scheme->dialog_spacing.x;
-    double central_stride = yes_button->get_size().y + m_impl->m_layout_scheme->dialog_spacing.x;
+    double central_stride = question_label->get_size().y + m_impl->m_layout_scheme->dialog_spacing.x;
 
     auto yes_no_rail = make_container_rail(GUI::Direction::RIGHT, yes_no_stride);
     yes_no_rail->insert(std::move(yes_button));
     yes_no_rail->insert(std::move(no_button));
+    yes_no_rail->set_instance_name("rail-yes-no");
 
-    auto central_rail = make_container_rail(GUI::Direction::DOWN, central_stride, offset);
-
+    auto central_rail = make_container_rail(GUI::Direction::DOWN, central_stride);
     central_rail->insert(
             std::move(question_label),
-            GUI::Alignment::MIDDLE | GUI::Alignment::CENTER);
+            GUI::Alignment::TOP | GUI::Alignment::CENTER);
     central_rail->insert(
             std::move(yes_no_rail),
-            GUI::Alignment::MIDDLE | GUI::Alignment::CENTER);
+            GUI::Alignment::TOP | GUI::Alignment::CENTER);
+    central_rail->set_instance_name("rail-central");
 
-    std::unique_ptr<GUI::Widget> result = std::move(central_rail);
+    auto panel = make_container_panel(offset);
+    panel->insert(std::move(central_rail));
+
+    std::unique_ptr<GUI::Widget> result = std::move(panel);
 
     return result;
 }
@@ -1086,6 +1261,12 @@ std::unique_ptr<GUI::WidgetContainer> GUI::make_container_free(
         const DimScreen& offset)
 {
     return m_impl->make_container_free(offset);
+}
+
+std::unique_ptr<GUI::WidgetContainer> GUI::make_container_panel(
+        const DimScreen& offset)
+{
+    return m_impl->make_container_panel(offset);
 }
 
 std::unique_ptr<GUI::WidgetContainer> GUI::make_container_rail(

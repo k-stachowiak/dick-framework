@@ -314,7 +314,7 @@ struct GUI {
     // Constants that define the common GUI scheme that aren't colors.
     struct LayoutScheme {
         double border_width;
-        DimScreen button_padding;
+        DimScreen widget_padding;
         DimScreen dialog_spacing;
     };
 
@@ -331,6 +331,7 @@ struct GUI {
         std::shared_ptr<InputState> t_input_state;
 
         // Common property of all the widgets.
+
         DimScreen t_offset { 0, 0 };
         std::string t_instance_name;
 
@@ -339,13 +340,14 @@ struct GUI {
                const std::shared_ptr<ColorScheme>& color_scheme,
                const std::shared_ptr<LayoutScheme>& layout_scheme,
                const std::shared_ptr<InputState>& input_state,
-               const DimScreen& offset) :
+               const DimScreen& offset,
+               const std::string& instance_name) :
             t_default_font { default_font },
             t_color_scheme { color_scheme },
             t_layout_scheme { layout_scheme },
             t_input_state { input_state },
             t_offset(offset),
-            t_instance_name { "unnamed" }
+            t_instance_name { instance_name }
         {}
 
         virtual ~Widget() {}
@@ -353,21 +355,16 @@ struct GUI {
         // Inversion of control for the regular GUI stuff:
 
         virtual void on_click(Button) {}
-        virtual void draw() {}
+        virtual void on_draw() {}
+        void debug_draw() const;
+        void debug_print(int recursion_level = 0) const;
 
         // Layout and alignment control via the sizes and offsets.
 
-        virtual DimScreen get_size() const { return { 0, 0 }; }
-
         const DimScreen& get_offset() const { return t_offset; }
         virtual void set_offset(const DimScreen& offset) { t_offset = offset; }
-
-        virtual std::pair<DimScreen, DimScreen> get_rect() const
-        {
-            const DimScreen& size = get_size();
-            DimScreen bottom_right { t_offset.x + size.x, t_offset.y + size.y };
-            return std::make_pair(t_offset, bottom_right);
-        }
+        virtual std::pair<DimScreen, DimScreen> get_rect() const;
+        virtual DimScreen get_size() const;
 
         // Helper algorithms:
 
@@ -375,8 +372,8 @@ struct GUI {
         static DimScreen align(DimScreen origin, const DimScreen& size, int alignment);
 
         // Compile-time type inference
-        virtual const std::string &get_type_name() const = 0;
 
+        virtual const std::string &get_type_name() const = 0;
         const std::string &get_instance_name() const { return t_instance_name; }
         void set_instance_name(const std::string& name) { t_instance_name = name; }
     };
@@ -384,54 +381,53 @@ struct GUI {
     // An extension to the Widget concept in the way that it allows for storing
     // other widgets and perform aggregated operations on all of its children.
     struct WidgetContainer : public Widget {
-        virtual ~WidgetContainer() {}
+
         WidgetContainer(
                 void *default_font,
                 const std::shared_ptr<ColorScheme>& color_scheme,
                 const std::shared_ptr<LayoutScheme>& layout_scheme,
                 const std::shared_ptr<InputState>& input_state,
-                const DimScreen& offset) :
-            Widget { default_font, color_scheme, layout_scheme, input_state, offset }
+                const DimScreen& offset,
+                const std::string& instance_name) :
+            Widget { default_font, color_scheme, layout_scheme, input_state, offset, instance_name }
         {}
-        virtual void insert(std::unique_ptr<Widget> widget, int alignment = Alignment::TOP | Alignment::LEFT) = 0;
+
+        virtual ~WidgetContainer() {}
+
+        // The methods added by the WidgetContainer class to the Widget concept:
+
+        virtual void insert(
+            std::unique_ptr<Widget> widget,
+            int alignment = Alignment::TOP | Alignment::LEFT) = 0;
         virtual void remove(Widget* widget) = 0;
-        virtual bool contains(Widget* widget) = 0;
         virtual void clear() = 0;
+        virtual bool contains(Widget* widget);
 
-        virtual std::pair<DimScreen, DimScreen> get_rect() const override = 0;
+        // Commonly overridden Widget API
 
-        template <class Range>
-        static std::pair<DimScreen, DimScreen> range_rect(const Range& range)
-        {
-            double min_x = std::numeric_limits<double>::infinity();
-            double max_x = -std::numeric_limits<double>::infinity();
-            double min_y = std::numeric_limits<double>::infinity();
-            double max_y = -std::numeric_limits<double>::infinity();
+        virtual void on_click(Button) override;
+        virtual void on_draw() override;
+        virtual void set_offset(const DimScreen &offset) override;
+        virtual std::pair<DimScreen, DimScreen> get_rect() const override;
 
-            for (const auto& widget : range) {
-                const DimScreen &size = widget->get_size();
-                const DimScreen &offset = widget->get_offset();
+        // Helpers assuming the container has the children stored in an iterable
+        // range.
 
-                double x1 = offset.x, y1 = offset.y;
-                double x2 = offset.x + size.x, y2 = offset.y + size.y;
+        virtual void visit_children(std::function<void(Widget&)> callback) = 0;
+        virtual void visit_children(std::function<void(const Widget&)> callback) const = 0;
 
-                min_y = std::min(y1, min_y);
-                max_y = std::max(y2, max_y);
-                min_x = std::min(x1, min_x);
-                max_x = std::max(x2, max_x);
-            }
-
-            return std::make_pair(
-                DimScreen { min_x, min_y },
-                DimScreen { max_x, max_y }
-            );
-        }
+        void visit_descendants(std::function<void(Widget&)> callback);
+        void visit_descendants(std::function<void(const Widget&)> callback) const;
     };
+
+    // The actual GUI implementation
 
     GUIImpl *m_impl;
 
     GUI(const std::shared_ptr<InputState>& input_state, Resources& resources);
     ~GUI();
+
+    // Widget constructors
 
     std::unique_ptr<Widget> make_image(
             void *image,
@@ -464,6 +460,9 @@ struct GUI {
             const DimScreen& offset = { 0, 0 });
 
     std::unique_ptr<WidgetContainer> make_container_free(
+            const DimScreen& offset = { 0, 0 });
+
+    std::unique_ptr<WidgetContainer> make_container_panel(
             const DimScreen& offset = { 0, 0 });
 
     std::unique_ptr<WidgetContainer> make_container_rail(

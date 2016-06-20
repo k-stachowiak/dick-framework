@@ -1,6 +1,6 @@
 CXX = clang++
 
-CXXFLAGS = -std=c++14 -Wall -Wextra -g -O0 -DDICK_LOG=4 -DDICK_GUI_DEBUG=0
+CXXFLAGS = -std=c++14 -Wall -Wextra -g -O0 -DDICK_LOG=4
 LDFLAGS = -L. -lm -lallegro_monolith
 
 all: demo
@@ -8,14 +8,14 @@ all: demo
 demo: libdick.a demo.o
 	$(CXX) $(LDFLAGS) demo.o -o $@ -ldick -lm -lallegro_monolith
 
-demo.o: demo.cpp dick.h
+demo.o: Makefile demo.cpp dick.h
 	$(CXX) $(CXXFLAGS) -o $@ -c demo.cpp
 
 libdick.a: dick.o
 	ar cr $@ $^
 	ranlib $@
 
-dick.o: dick.cpp dick.h
+dick.o: Makefile dick.cpp dick.h
 	$(CXX) $(CXXFLAGS) -o $@ -c -fPIC dick.cpp
 
 .PHONY: clean distr
