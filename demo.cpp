@@ -49,8 +49,10 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_yes_no = m_gui.make_dialog_yes_no(
             "Quit?",
             [this](){ t_transition_required = true; },
-            [this](){ m_ask_to_quit = false; },
-            { SCREEN_W / 2, 2 * SCREEN_H / 3 });
+            [this](){ m_ask_to_quit = false; });
+        m_yes_no->align(
+            { SCREEN_W / 2, 2 * SCREEN_H / 3 },
+            dick::GUI::Alignment::MIDDLE | dick::GUI::Alignment::CENTER);
         m_yes_no->set_instance_name("yes-no-dialog");
 
         m_menu_rail = m_gui.make_container_rail(

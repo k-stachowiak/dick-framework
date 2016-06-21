@@ -388,6 +388,21 @@ DimScreen GUI::Widget::get_size() const
     return DimScreen { bottom_right.x - top_left.x, bottom_right.y - top_left.y };
 }
 
+void GUI::Widget::align(const DimScreen& point, int alignment)
+{
+    DimScreen top_left, bottom_right;
+    std::tie(top_left, bottom_right) = get_rect();
+
+    const DimScreen &size = get_size();
+
+    DimScreen new_top_left = align_point(point, size, alignment);
+
+    double dx = new_top_left.x - top_left.x;
+    double dy = new_top_left.y - top_left.y;
+
+    set_offset({ t_offset.x + dx, t_offset.y + dy });
+}
+
 bool GUI::Widget::point_in(const DimScreen &point) const
 {
     DimScreen top_left, bottom_right;
@@ -401,33 +416,33 @@ bool GUI::Widget::point_in(const DimScreen &point) const
     return point.x >= x0 && point.x <= x1 && point.y >= y0 && point.y <= y1;
 }
 
-DimScreen GUI::Widget::align(DimScreen origin, const DimScreen& size, int alignment)
+DimScreen GUI::Widget::align_point(DimScreen point, const DimScreen& size, int alignment)
 {
     if (alignment & Alignment::RIGHT) {
-        origin.x -= size.x;
+        point.x -= size.x;
     }
 
     if (alignment & Alignment::CENTER) {
-        origin.x -= size.x / 2;
+        point.x -= size.x / 2;
     }
 
     if (alignment & Alignment::LEFT) {
-        origin.x += 0;
+        point.x += 0;
     }
 
     if (alignment & Alignment::TOP) {
-        origin.y += 0;
+        point.y += 0;
     }
 
     if (alignment & Alignment::MIDDLE) {
-        origin.y -= size.y / 2;
+        point.y -= size.y / 2;
     }
 
     if (alignment & Alignment::BOTTOM) {
-        origin.y -= size.y;
+        point.y -= size.y;
     }
 
-    return origin;
+    return point;
 }
 
 struct WidgetImage : public GUI::Widget {
@@ -530,11 +545,7 @@ struct WidgetButton : public GUI::Widget {
         DimScreen middle = t_offset;
         middle.x += m_size.x / 2;
         middle.y += m_size.y / 2;
-        const DimScreen& sub_size = m_sub_widget->get_size();
-        m_sub_widget->set_offset(
-            align(
-                middle, sub_size,
-                GUI::Alignment::MIDDLE | GUI::Alignment::CENTER));
+        m_sub_widget->align(middle, GUI::Alignment::MIDDLE | GUI::Alignment::CENTER);
     }
 
     WidgetButton(
@@ -812,8 +823,7 @@ struct WidgetContainerPanel : public GUI::WidgetContainer {
 
     void insert(std::unique_ptr<Widget> widget, int alignment) override
     {
-        const DimScreen& size = widget->get_size();
-        widget->set_offset(align(t_offset, size, alignment));
+        widget->align(t_offset, alignment);
         m_children.push_back(std::move(widget));
         m_compute_size();
     }
@@ -925,8 +935,7 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
 
     void insert(std::unique_ptr<Widget> widget, int alignment) override
     {
-        const DimScreen& size = widget->get_size();
-        widget->set_offset(align(m_current_offset, size, alignment));
+        widget->align(m_current_offset, alignment);
         m_children.push_back(std::move(widget));
         m_advance_offset();
     }

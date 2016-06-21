@@ -365,11 +365,12 @@ struct GUI {
         virtual void set_offset(const DimScreen& offset) { t_offset = offset; }
         virtual std::pair<DimScreen, DimScreen> get_rect() const;
         virtual DimScreen get_size() const;
+        void align(const DimScreen &point, int alignment);
 
         // Helper algorithms:
 
         virtual bool point_in(const DimScreen& point) const;
-        static DimScreen align(DimScreen origin, const DimScreen& size, int alignment);
+        static DimScreen align_point(DimScreen point, const DimScreen& size, int alignment);
 
         // Compile-time type inference
 
