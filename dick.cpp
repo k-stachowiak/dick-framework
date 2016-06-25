@@ -752,11 +752,6 @@ struct WidgetContainerFree : public GUI::WidgetContainer {
         m_children.clear();
     }
 
-    std::pair<DimScreen, DimScreen> get_rect() const override
-    {
-        return std::make_pair(t_offset, t_offset);
-    }
-
     void visit_children(std::function<void(Widget&)> callback) override
     {
         for (const std::unique_ptr<Widget>& widget : m_children) {
