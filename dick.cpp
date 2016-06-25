@@ -982,6 +982,97 @@ struct WidgetContainerRail : public GUI::WidgetContainer {
     }
 };
 
+struct WidgetContainerBox: public GUI::WidgetContainer {
+
+    DimScreen m_current_offset;
+    GUI::Direction::Enum m_direction;
+    double m_spacing;
+    std::vector<std::unique_ptr<Widget>> m_children;
+
+    void m_advance_offset(const std::unique_ptr<Widget>& child)
+    {
+        DimScreen size = child->get_size();
+        switch (m_direction) {
+        case GUI::Direction::UP:
+            m_current_offset.y -= size.y + m_spacing;
+            break;
+        case GUI::Direction::RIGHT:
+            m_current_offset.x += size.x + m_spacing;
+            break;
+        case GUI::Direction::DOWN:
+            m_current_offset.y += size.y + m_spacing;
+            break;
+        case GUI::Direction::LEFT:
+            m_current_offset.x -= size.x + m_spacing;
+            break;
+        }
+    }
+
+    WidgetContainerBox(
+            void *default_font,
+            const std::shared_ptr<GUI::ColorScheme>& color_scheme,
+            const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
+            const std::shared_ptr<InputState>& input_state,
+            GUI::Direction::Enum direction,
+            double spacing,
+            const DimScreen& offset,
+            const std::string& instance_name) :
+        WidgetContainer { default_font, color_scheme, layout_scheme, input_state, offset, instance_name },
+        m_current_offset(offset),
+        m_direction { direction },
+        m_spacing { spacing }
+    {
+    }
+
+    void insert(std::unique_ptr<Widget> widget, int) override
+    {
+        widget->align(m_current_offset, GUI::Alignment::TOP | GUI::Alignment::LEFT);
+        m_advance_offset(widget);
+        m_children.push_back(std::move(widget));
+    }
+
+    void remove(Widget* widget) override
+    {
+        auto it = std::find_if(
+                begin(m_children),
+                end(m_children),
+                [widget](const std::unique_ptr<Widget>& child)
+                {
+                    return child.get() == widget;
+                });
+
+        if (it != end(m_children)) {
+            m_children.erase(it);
+        }
+    }
+
+    void clear() override
+    {
+        m_children.clear();
+        m_current_offset = t_offset;
+    }
+
+    void visit_children(std::function<void(Widget&)> callback) override
+    {
+        for (const std::unique_ptr<Widget>& widget : m_children) {
+            callback(*widget.get());
+        }
+    }
+
+    void visit_children(std::function<void(const Widget&)> callback) const override
+    {
+        for (const std::unique_ptr<Widget>& widget : m_children) {
+            callback(*widget.get());
+        }
+    }
+
+    const std::string &get_type_name() const override
+    {
+        static std::string name = "container-box";
+        return name;
+    }
+};
+
 struct GUIImpl {
 
     void *m_default_font;
@@ -1172,6 +1263,26 @@ struct GUIImpl {
         };
         return result;
     }
+
+    std::unique_ptr<GUI::WidgetContainer> make_container_box(
+            GUI::Direction::Enum direction,
+            double spacing,
+            const DimScreen& offset)
+    {
+        std::unique_ptr<GUI::WidgetContainer> result {
+            new WidgetContainerBox {
+                m_default_font,
+                m_color_scheme,
+                m_layout_scheme,
+                m_input_state,
+                direction,
+                spacing,
+                offset,
+                m_default_instance_name
+            }
+        };
+        return result;
+    }
 };
 
 GUI::GUI(
@@ -1241,20 +1352,51 @@ std::unique_ptr<GUI::Widget> GUI::make_dialog_yes_no(
     auto question_label = make_label(question);
     question_label->set_instance_name("lbl-question");
 
-    double yes_no_stride = yes_button->get_size().x + m_impl->m_layout_scheme->dialog_spacing.x;
-    double central_stride = question_label->get_size().y + m_impl->m_layout_scheme->dialog_spacing.x;
+    double central_stride = question_label->get_size().y + m_impl->m_layout_scheme->dialog_spacing.y;
 
-    auto yes_no_rail = make_container_rail(GUI::Direction::RIGHT, yes_no_stride);
-    yes_no_rail->insert(std::move(yes_button));
-    yes_no_rail->insert(std::move(no_button));
-    yes_no_rail->set_instance_name("rail-yes-no");
+    auto yes_no_box = make_container_box(
+            GUI::Direction::RIGHT,
+            m_impl->m_layout_scheme->dialog_spacing.x);
+    yes_no_box->insert(std::move(yes_button));
+    yes_no_box->insert(std::move(no_button));
+    yes_no_box->set_instance_name("rail-yes-no");
 
     auto central_rail = make_container_rail(GUI::Direction::DOWN, central_stride);
     central_rail->insert(
             std::move(question_label),
             GUI::Alignment::TOP | GUI::Alignment::CENTER);
     central_rail->insert(
-            std::move(yes_no_rail),
+            std::move(yes_no_box),
+            GUI::Alignment::TOP | GUI::Alignment::CENTER);
+    central_rail->set_instance_name("rail-central");
+
+    auto panel = make_container_panel(offset);
+    panel->insert(std::move(central_rail));
+
+    std::unique_ptr<GUI::Widget> result = std::move(panel);
+
+    return result;
+}
+
+std::unique_ptr<GUI::Widget> GUI::make_dialog_ok(
+        const std::string& message,
+        Callback on_ok,
+        const DimScreen& offset)
+{
+
+    auto button = make_button(make_label("OK"), on_ok);
+    button->set_instance_name("btn-ok");
+
+    auto message_label = make_label(message);
+    message_label->set_instance_name("lbl-message");
+
+    double central_stride = message_label->get_size().y + m_impl->m_layout_scheme->dialog_spacing.y;
+    auto central_rail = make_container_rail(GUI::Direction::DOWN, central_stride);
+    central_rail->insert(
+            std::move(message_label),
+            GUI::Alignment::TOP | GUI::Alignment::CENTER);
+    central_rail->insert(
+            std::move(button),
             GUI::Alignment::TOP | GUI::Alignment::CENTER);
     central_rail->set_instance_name("rail-central");
 
@@ -1284,6 +1426,14 @@ std::unique_ptr<GUI::WidgetContainer> GUI::make_container_rail(
         const DimScreen& offset)
 {
     return m_impl->make_container_rail(direction, stride, offset);
+}
+
+std::unique_ptr<GUI::WidgetContainer> GUI::make_container_box(
+        Direction::Enum direction,
+        double spacing,
+        const DimScreen& offset)
+{
+    return m_impl->make_container_box(direction, spacing, offset);
 }
 
 class PlatformImpl {

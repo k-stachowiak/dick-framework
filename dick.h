@@ -460,6 +460,11 @@ struct GUI {
             Callback on_no,
             const DimScreen& offset = { 0, 0 });
 
+    std::unique_ptr<Widget> make_dialog_ok(
+            const std::string& message,
+            Callback on_ok,
+            const DimScreen& offset = { 0, 0 });
+
     std::unique_ptr<WidgetContainer> make_container_free(
             const DimScreen& offset = { 0, 0 });
 
@@ -469,6 +474,11 @@ struct GUI {
     std::unique_ptr<WidgetContainer> make_container_rail(
             Direction::Enum direction,
             double stride,
+            const DimScreen& offset = { 0, 0 });
+
+    std::unique_ptr<WidgetContainer> make_container_box(
+            Direction::Enum direction,
+            double spacing = 0.0,
             const DimScreen& offset = { 0, 0 });
 };
 
