@@ -59,6 +59,10 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
                 dick::GUI::Direction::LEFT,
                 75,
                 { SCREEN_W - 3, 3 });
+        m_menu_rail->insert(m_gui.make_button_image(
+                    m_resources.get_image("db2.png"),
+                    [this](){ exit(3); }),
+                    dick::GUI::Alignment::TOP | dick::GUI::Alignment::RIGHT);
         m_menu_rail->insert(m_gui.make_button(
                     m_gui.make_image(m_resources.get_image("x.png")),
                     [this](){ m_ask_to_quit = true; }),
@@ -189,4 +193,3 @@ int main()
 
     platform.real_time_loop(state_machine);
 }
-

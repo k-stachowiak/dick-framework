@@ -626,6 +626,53 @@ struct WidgetButton : public GUI::Widget {
     }
 };
 
+struct WidgetButtonImage : public GUI::Widget {
+
+    GUI::Callback m_callback;
+    void *m_image;
+
+    WidgetButtonImage(
+            void *default_font,
+            const std::shared_ptr<GUI::ColorScheme>& color_scheme,
+            const std::shared_ptr<GUI::LayoutScheme>& layout_scheme,
+            const std::shared_ptr<InputState>& input_state,
+            void *image,
+            GUI::Callback callback,
+            const DimScreen& offset,
+            const std::string &instance_name) :
+        Widget { default_font, color_scheme, layout_scheme, input_state, offset, instance_name },
+        m_callback { callback },
+        m_image { image }
+    {
+    }
+
+    void on_click(Button button) override
+    {
+        if (button == Button::BUTTON_1 && point_in(t_input_state->cursor)) {
+            m_callback();
+        }
+    }
+
+    void on_draw() override
+    {
+        al_draw_bitmap(static_cast<ALLEGRO_BITMAP*>(m_image), t_offset.x, t_offset.y, 0);
+    }
+
+    DimScreen get_size() const override
+    {
+        return DimScreen {
+            static_cast<double>(al_get_bitmap_width(static_cast<ALLEGRO_BITMAP*>(m_image))),
+            static_cast<double>(al_get_bitmap_height(static_cast<ALLEGRO_BITMAP*>(m_image))),
+        };
+    }
+
+    const std::string &get_type_name() const override
+    {
+        static std::string name = "button-image";
+        return name;
+    }
+};
+
 bool GUI::WidgetContainer::contains(Widget* widget)
 {
     bool found = false;
@@ -1207,6 +1254,26 @@ struct GUIImpl {
         return result;
     }
 
+    std::unique_ptr<GUI::Widget> make_button_image(
+            void* image,
+            GUI::Callback callback,
+            const DimScreen& offset)
+    {
+        std::unique_ptr<GUI::Widget> result {
+            new WidgetButtonImage {
+                m_default_font,
+                m_color_scheme,
+                m_layout_scheme,
+                m_input_state,
+                image,
+                callback,
+                offset,
+                m_default_instance_name
+            }
+        };
+        return result;
+    }
+
     std::unique_ptr<GUI::WidgetContainer> make_container_free(
             const DimScreen& offset)
     {
@@ -1329,6 +1396,14 @@ std::unique_ptr<GUI::Widget> GUI::make_button_sized(
         const DimScreen& offset)
 {
     return m_impl->make_button_sized(std::move(sub_widget), callback, size, offset);
+}
+
+std::unique_ptr<GUI::Widget> GUI::make_button_image(
+        void* image,
+        Callback callback,
+        const DimScreen& offset)
+{
+    return m_impl->make_button_image(image, callback, offset);
 }
 
 std::unique_ptr<GUI::Widget> GUI::make_dialog_yes_no(
@@ -1707,4 +1782,3 @@ Platform::~Platform() { delete m_impl; }
 void Platform::real_time_loop(PlatformClient &client) { m_impl->real_time_loop(client); }
 
 }
-

@@ -454,6 +454,11 @@ struct GUI {
             const DimScreen& size,
             const DimScreen& offset = { 0, 0 });
 
+    std::unique_ptr<Widget> make_button_image(
+            void* image,
+            Callback callback,
+            const DimScreen& offset = { 0, 0 });
+
     std::unique_ptr<Widget> make_dialog_yes_no(
             const std::string& question,
             Callback on_yes,
