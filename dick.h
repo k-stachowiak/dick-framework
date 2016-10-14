@@ -12,6 +12,8 @@
 
 namespace dick {
 
+extern const std::string version;
+
 // Helper types
 // ============
 
@@ -32,30 +34,34 @@ struct Color {
 // Logging facilities
 // ==================
 
+#define LOG_ERROR(...)
+#define LOG_WARNING(...)
+#define LOG_DEBUG(...)
+#define LOG_TRACE(...)
+
 #if DICK_LOG > 0
 #   include <cstdio>
 #   define LOG_MESSAGE(LOG_LEVEL, LOG_FORMAT, ...) \
         printf( \
             "[" LOG_LEVEL "][%s] %s:%d : " LOG_FORMAT "\n", \
             __func__, __FILE__, __LINE__, ##__VA_ARGS__)
+#endif
+
+#if DICK_LOG >= 1
+#   undef LOG_ERROR
 #   define LOG_ERROR(LOG_FORMAT, ...) LOG_MESSAGE("ERROR", LOG_FORMAT, ##__VA_ARGS__)
-#   if DICK_LOG > 1
-#       define LOG_WARNING(LOG_FORMAT, ...) LOG_MESSAGE("WARNING", LOG_FORMAT, ##__VA_ARGS__)
-#       if DICK_LOG > 2
-#           define LOG_DEBUG(LOG_FORMAT, ...) LOG_MESSAGE("DEBUG", LOG_FORMAT, ##__VA_ARGS__)
-#           if DICK_LOG > 3
-#               define LOG_TRACE(LOG_FORMAT, ...) LOG_MESSAGE("TRACE", LOG_FORMAT, ##__VA_ARGS__)
-#           else
-#               define LOG_TRACE(...)
-#           endif
-#       else
-#           define LOG_DEBUG(...)
-#       endif
-#   else
-#       define LOG_WARNING(...)
-#   endif
-#else
-#   define LOG_TRACE(...)
+#endif
+#if DICK_LOG >= 2
+#   undef LOG_WARNING
+#   define LOG_WARNING(LOG_FORMAT, ...) LOG_MESSAGE("WARNING", LOG_FORMAT, ##__VA_ARGS__)
+#endif
+#if DICK_LOG >= 3
+#   undef LOG_DEBUG
+#   define LOG_DEBUG(LOG_FORMAT, ...) LOG_MESSAGE("DEBUG", LOG_FORMAT, ##__VA_ARGS__)
+#endif
+#if DICK_LOG >= 4
+#   undef LOG_TRACE
+#   define LOG_TRACE(LOG_FORMAT, ...) LOG_MESSAGE("TRACE", LOG_FORMAT, ##__VA_ARGS__)
 #endif
 
 // Resources management
@@ -87,6 +93,18 @@ struct Resources {
     ~Resources();
     void *get_image(const std::string &path);
     void *get_font(const std::string &path, int size);
+};
+
+double image_width(void *image);
+double image_height(void *image);
+DimScreen image_size(void *image);
+
+// Frame drawing utility
+// =====================
+
+struct Frame {
+    Frame(Color clear_color);
+    ~Frame();
 };
 
 // Input management

@@ -20,6 +20,8 @@
 
 namespace dick {
 
+const std::string version = "0.1.0";
+
 // Common utility
 
 inline ALLEGRO_COLOR dick_to_platform_color(const Color& x)
@@ -157,6 +159,41 @@ Resources::~Resources() { delete m_impl; }
 void *Resources::get_image(const std::string &path) { return m_impl->get_image(path, true); }
 void *Resources::get_font(const std::string &path, int size) { return m_impl->get_font(path, size, true); }
 
+double image_width(void *image)
+{
+    return static_cast<double>(
+        al_get_bitmap_width(
+            static_cast<ALLEGRO_BITMAP*>(
+                image)));
+}
+
+double image_height(void *image)
+{
+    return static_cast<double>(
+        al_get_bitmap_height(
+            static_cast<ALLEGRO_BITMAP*>(
+                image)));
+}
+
+DimScreen image_size(void *image)
+{
+    return { image_width(image), image_height(image) };
+}
+
+Frame::Frame(Color clear_color)
+{
+    al_clear_to_color(
+        al_map_rgb_f(
+            clear_color.r,
+            clear_color.g,
+            clear_color.b));
+}
+
+Frame::~Frame()
+{
+    al_flip_display();
+}
+
 struct StateFadeBlack : public dick::StateNode {
     std::shared_ptr<dick::StateNode> m_child;
     std::shared_ptr<dick::StateNode> m_next;
@@ -206,8 +243,8 @@ public:
         m_child->draw(weight);
 
         al_draw_filled_rectangle(0, 0,
-                al_get_bitmap_width(target),
-                al_get_bitmap_height(target),
+                image_width(target),
+                image_height(target),
                 al_map_rgba_f(m_red, m_green, m_blue, alpha));
     }
 
@@ -467,10 +504,7 @@ struct WidgetImage : public GUI::Widget {
 
     DimScreen get_size() const override
     {
-        return DimScreen {
-            static_cast<double>(al_get_bitmap_width(static_cast<ALLEGRO_BITMAP*>(m_image))),
-            static_cast<double>(al_get_bitmap_height(static_cast<ALLEGRO_BITMAP*>(m_image))),
-        };
+        return image_size(m_image);
     }
 
     const std::string &get_type_name() const override
@@ -660,10 +694,7 @@ struct WidgetButtonImage : public GUI::Widget {
 
     DimScreen get_size() const override
     {
-        return DimScreen {
-            static_cast<double>(al_get_bitmap_width(static_cast<ALLEGRO_BITMAP*>(m_image))),
-            static_cast<double>(al_get_bitmap_height(static_cast<ALLEGRO_BITMAP*>(m_image))),
-        };
+        return image_size(m_image);
     }
 
     const std::string &get_type_name() const override
@@ -1669,7 +1700,6 @@ class PlatformImpl {
 
         const double frame_weight = accumulator / spf;
         client.draw(frame_weight);
-        al_flip_display();
     }
 
 public:

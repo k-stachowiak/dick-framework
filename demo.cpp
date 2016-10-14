@@ -149,12 +149,12 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
 
     void draw(double) override
     {
-        al_clear_to_color(al_map_rgb_f(m_red, m_green, m_blue));
+        dick::Frame frame(dick::Color { m_red, m_green, m_blue });
 
         al_draw_scaled_rotated_bitmap(
                 m_bitmap,
-                al_get_bitmap_width(m_bitmap) / 2,
-                al_get_bitmap_height(m_bitmap) / 2,
+                dick::image_width(m_bitmap) / 2,
+                dick::image_height(m_bitmap) / 2,
                 SCREEN_W / 2, SCREEN_H / 2,
                 1.0, 1.0,
                 m_rotation,
