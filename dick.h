@@ -89,7 +89,7 @@ struct Resources {
     // resource pointers.
 
     ResourcesImpl *m_impl;
-    Resources(Resources *parent = nullptr, const std::string &path_prefix = {});
+    Resources(const std::string &path_prefix = {}, Resources *parent = nullptr);
     ~Resources();
     void *get_image(const std::string &path);
     void *get_font(const std::string &path, int size);

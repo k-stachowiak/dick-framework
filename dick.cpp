@@ -20,7 +20,7 @@
 
 namespace dick {
 
-const std::string version = "0.1.0";
+const std::string version = "0.2.0";
 
 // Common utility
 
@@ -81,7 +81,7 @@ class ResourcesImpl {
     }
 
 public:
-    ResourcesImpl(Resources *parent, const std::string &path_prefix) :
+    ResourcesImpl(const std::string &path_prefix, Resources *parent) :
         m_parent { parent },
         m_path_prefix { path_prefix }
     {}
@@ -153,8 +153,8 @@ public:
     }
 };
 
-Resources::Resources(Resources *parent, const std::string &path_prefix) :
-    m_impl { new ResourcesImpl { parent, path_prefix } } {}
+Resources::Resources(const std::string &path_prefix, Resources *parent) :
+    m_impl { new ResourcesImpl { path_prefix, parent } } {}
 Resources::~Resources() { delete m_impl; }
 void *Resources::get_image(const std::string &path) { return m_impl->get_image(path, true); }
 void *Resources::get_font(const std::string &path, int size) { return m_impl->get_font(path, size, true); }

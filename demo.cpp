@@ -41,7 +41,7 @@ struct DemoState : public dick::StateNode, std::enable_shared_from_this<dick::St
         m_rotation { 0.0 },
         m_red { 0.5 }, m_green { 0.5 }, m_blue { 0.5 },
         m_ask_to_quit { false },
-        m_resources { global_resources },
+        m_resources { "", global_resources },
         m_input_state { new dick::InputState },
         m_gui { m_input_state, m_resources },
         m_bitmap { static_cast<ALLEGRO_BITMAP*>(m_resources.get_image(IMAGE_NAME)) }
